@@ -1,3 +1,9 @@
+<!-- PROJECT SHIELDS -->
+
+[![Contributors][contributors-shield]][contributors-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT][license-shield]][license-url]
+
 <!-- PROJECT LOGO -->
 <div align="center">
     <a href="https://github.com/formblatt-org/formblatt">
@@ -42,3 +48,11 @@ Built on top of:
 
 * [@formisch](https://github.com/open-circle/formisch)
 * [@valibot](https://github.com/open-circle/valibot)
+
+<!-- Markdown Links & Images -->
+[contributors-shield]: https://img.shields.io/github/contributors/formblatt-org/formblatt.svg?style=for-the-badge
+[contributors-url]: https://github.com/formblatt-org/formblatt/graphs/contributors
+[issues-shield]: https://img.shields.io/github/issues/formblatt-org/formblatt.svg?style=for-the-badge
+[issues-url]: https://github.com/formblatt-org/formblatt/issues
+[license-shield]: https://img.shields.io/github/license/formblatt-org/formblatt.svg?style=for-the-badge
+[license-url]: https://github.com/formblatt-org/formblatt/blob/main/LICENSE
