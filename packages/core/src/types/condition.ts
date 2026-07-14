@@ -1,25 +1,18 @@
 /**
- * One segment of a field path.
- *
- * Paths adress values in the form's data tree: a `string` segment is an
- * object key (usually a field name), a `number` segment is an array index.
- *
- * For example, `["lines", 0, "qty"]` addresses the `qty` field of the first
- * row of the `lines` array field.
+ * One segment of a field path: a `string` is an object key, a `number` an
+ * array index - `["lines", 0, "qty"]` addresses the first row's `qty`.
  */
 export type PathKey = string | number;
 
 /**
- * The operator of a {@link Comparison}, applied to the value read from
- * {@link Comparison.path}.
+ * The operator of a {@link Comparison}, applied to the value read from its path.
  *
- * - `eq` / `ne` - strict (in)equality (`===` / `!==`) against `value`.
- * - `in` / `nin` - membership of the field value in `value`, which must be
- *  an array. When `value` is not an array, **both** operators evaluate to
- *  `false`.
- * - `thruth` / `falsly` - JavaScript truthiness of the field value.
- * - `empty` / `notEmpty` - whether the field value is `null`, `undefined`,
- *  or `""`. Note that `0` and `false` are **not** empty.
+ * - `eq` / `ne` - strict (in)equality against `value`.
+ * - `in` / `nin` - membership in `value`, which must be an array; when it is
+ *  not, BOTH operators are `false`.
+ * - `thuthy` / `falsy` - JavaScript truthiness.
+ * - `empty` / `notEmpty` - `null`, `undefined`, or `""`. `0` and `false` are
+ *  NOT empty.
  * - `gt` / `gte` / `lt` / `lte` - numeric comparison against `value`.
  */
 export type ComparisonOperator =
@@ -38,20 +31,16 @@ export type Comparison = {
    * The field to read, as a path of {@link PathKey} segments.
    */
   path: readonly PathKey[];
-  /**
-   * How to compare the value at `path`. See {@link ComparisonOperator}.
-   */
+  /** How to compare. See {@link ComparisonOperator}. */
   op: ComparisonOperator;
-  /**
-   * The comparison operand. Required by the value-taking operators.
-   */
+  /** The operand — required by the value-taking operators, ignored by the rest. */
   value?: unknown;
 }
 
 /**
  * A declarative, JSON-serializable boolean expression over form values.
  *
- * A condition is either a {@link Comparison} leaf or a logical combinator:
+ * Either a {@link Comparison} leaf or a combinator:
  *  - `{ and: [...] }` - true when every child is true; an empty list is true.
  *  - `{ or: [...] }` - true when at least one child is true; an empty list is false.
  *  - `{ not: ... }` - negates its child.
