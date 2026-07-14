@@ -1,0 +1,6 @@
+{
+  "name": "@formblatt/vue",
+  "version": "0.0.0",
+  "description": "Vue bindings for Formblatt",
+  "type": "module"
+}

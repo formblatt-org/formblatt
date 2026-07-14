@@ -1,0 +1,6 @@
+{
+  "name": "@formblatt/core",
+  "version": "0.0.0",
+  "description": "Framework-agnostic core of Formblatt",
+  "type": "module"
+}
