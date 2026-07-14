@@ -1,8 +1,10 @@
 <!-- PROJECT SHIELDS -->
 
+<div align="center">
 [![Contributors][contributors-shield]][contributors-url]
 [![Issues][issues-shield]][issues-url]
 [![MIT][license-shield]][license-url]
+</div>
 
 <!-- PROJECT LOGO -->
 <div align="center">
