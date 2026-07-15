@@ -11,6 +11,7 @@ const definition: FormDefinition = {
     { name: "billingCity", kind: "string", initial: "Berlin" },
     { name: "note", kind: "string", required: false, initial: "kept" },
     { name: "internalId", kind: "string", required: false, hidden: true },
+    { name: "auditRef", kind: "string", required: false, hidden: true },
   ],
   affects: [
     {
@@ -47,18 +48,19 @@ describe("useAffects", () => {
     expect(result.isVisible(["sameAsShipping"])).toBe(true);
   });
 
-  it("treats a statically hidden field as never visible", () => {
+  it("treats a hidden field no affect targets as never visible", () => {
     const { result } = withForm(definition, form => useAffects(form, definition));
-    expect(result.isVisible(["internalId"])).toBe(false);
+    expect(result.isVisible(["auditRef"])).toBe(false);
   });
 
-  it("keeps a hidden field invisible even when a show affect's condition holds", async () => {
+  it("lets a show affect reveal a hidden field", async () => {
     const { form, result } = withForm(definition, form => useAffects(form, definition));
+    expect(result.isVisible(["internalId"])).toBe(false);
 
     writeInput(form, ["sameAsShipping"], true);
     await settle();
 
-    expect(result.isVisible(["internalId"])).toBe(false);
+    expect(result.isVisible(["internalId"])).toBe(true);
   });
 
   it("clears a hideAndClear target's value when it hides", async () => {

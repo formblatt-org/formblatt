@@ -19,7 +19,7 @@ export interface FormContext {
   /** Narrows a name to a renderable field — skips object/array kinds, warns on unknown. */
   resolveField(name: string): ValueField | undefined;
 
-  /** Whether the field at `path` is not statically `hidden` and passes the visibility affects targeting it. */
+  /** Whether the field at `path` should render: affects targeting it decide; with none, its static `hidden` flag does. */
   isVisible(path: readonly PathKey[]): boolean;
   /** Whether a section should render: its own condition holds and it has a visible child. */
   isSectionVisible(section: ResolvedSection): boolean;

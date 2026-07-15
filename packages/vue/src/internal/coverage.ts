@@ -1,6 +1,6 @@
 import { nextTick, onMounted } from "vue";
-import { isComputedField, warn } from "@formblatt/core";
-import type { FormDefinition } from "@formblatt/core";
+import { compileAffects, isComputedField, toPathKey, warn } from "@formblatt/core";
+import type { FieldDefinition, FormDefinition } from "@formblatt/core";
 
 type Placements = Map<string, number>;
 
@@ -52,13 +52,19 @@ function warnDuplicatePlacements(placements: Placements): void {
 }
 
 /**
- * Object fields have no renderer, computed fields are always optional, and
- * statically `hidden` fields never render (nor enforce required), so none
- * counts as missing. Array fields do — `DynamicFieldArray` registers them.
+ * Object fields have no renderer, computed fields are always optional, and a
+ * `hidden` field no affect can reveal never renders (nor enforces required),
+ * so none counts as missing. Array fields do — `DynamicFieldArray` registers
+ * them — and so does a hidden field an affect CAN reveal: once shown it is
+ * re-required, so it still needs a place in the DOM.
  */
 function warnUnplacedFields(definition: FormDefinition, placements: Placements): void {
+  const revealable = new Set(compileAffects(definition.affects).keys());
+  const neverRenders = (field: FieldDefinition) =>
+    !!field.hidden && !revealable.has(toPathKey([field.name]));
+
   const unplaced = definition.fields
-    .filter(field => field.kind !== "object" && !isComputedField(field) && !field.hidden)
+    .filter(field => field.kind !== "object" && !isComputedField(field) && !neverRenders(field))
     .filter(field => !placements.has(field.name))
     .map(field => field.name);
 

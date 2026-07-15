@@ -14,13 +14,13 @@ export function useAffects(form: DynamicFormStore, definition: FormDefinition) {
   const read = createReader(form);
 
   /**
-   * A field with no rules is always visible; rules on one field AND together.
-   * A statically `hidden` field is never visible — no affect overrides it.
+   * Rules on one field AND together. A field with no rules falls back to its
+   * static `hidden` flag — so an affect targeting a hidden field reveals it.
    */
   const isVisible = (path: readonly PathKey[]): boolean => {
-    if (resolveFieldByPath(definition, path)?.hidden) return false;
     const rule = rules.get(toPathKey(path));
-    return !rule || rule.conditions.every(condition => evaluate(condition, read));
+    if (!rule) return !resolveFieldByPath(definition, path)?.hidden;
+    return rule.conditions.every(condition => evaluate(condition, read));
   };
 
   const clearableWhileHidden = [...rules]

@@ -75,7 +75,7 @@ usePlacedFields([props.name]);
 </script>
 
 <template>
-  <FieldArray v-if="arrayField && !arrayField.hidden" :of="ctx.form" :path="arrayPath" v-slot="array">
+  <FieldArray v-if="arrayField && ctx.isVisible(path)" :of="ctx.form" :path="arrayPath" v-slot="array">
     <!-- Opening this slot replaces the default rows entirely; build your own DOM from `items`. -->
     <slot
       :items="array.items"
