@@ -7,3 +7,4 @@ export * from "./lib/affect";
 export * from "./lib/layout";
 export * from "./lib/field";
 export * from "./lib/form-builder";
+export * from "./lib/definition-migrations";
