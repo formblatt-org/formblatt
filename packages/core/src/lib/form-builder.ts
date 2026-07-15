@@ -115,10 +115,10 @@ function buildField(
 
 /**
  * Whether the field carries its own required check. Not when explicitly
- * optional, never fillable by the user (`hidden`, `disabled` or computed), or
- * targeted by a visibility affect — that case belongs to
- * {@link withRequiredWhenVisible}, and enforcing it here too would report the
- * same error twice.
+ * optional, targeted by a visibility affect (that case — including a `hidden`
+ * field the affect reveals — belongs to {@link withRequiredWhenVisible}, and
+ * enforcing it here too would report the same error twice), or never fillable
+ * by the user: hidden with no revealing affect, `disabled`, or computed.
  */
 function enforcesOwnRequired(
   field: FieldDefinition,
@@ -126,8 +126,8 @@ function enforcesOwnRequired(
   conditionalPaths: ConditionalPaths,
 ): boolean {
   if (field.required === false) return false;
-  if (field.hidden || field.disabled) return false;
   if (conditionalPaths.has(toPathKey(path))) return false;
+  if (field.hidden || field.disabled) return false;
   return !(isValueField(field) && field.computed);
 }
 

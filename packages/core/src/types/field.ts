@@ -35,10 +35,12 @@ interface BaseField {
   /** Overrides the default "This field is required" message. */
   requiredMessage?: string;
   /**
-   * Defaults to `false`. Never renders the field, but keeps it in the data —
-   * `initial`, computed and populated values still submit. A hidden field
-   * never enforces `required` (its error could never be seen), though content
-   * validations still apply.
+   * Defaults to `false`. Hides the field until a visibility affect targeting
+   * it says otherwise; with no such affect it never renders. Either way the
+   * field stays in the data — `initial`, computed and populated values still
+   * submit. A hidden field no affect can reveal never enforces `required`
+   * (its error could never be seen); one an affect governs is re-required
+   * while visible, like any conditional field. Content validations always apply.
    */
   hidden?: boolean;
   /**

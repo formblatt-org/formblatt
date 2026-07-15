@@ -251,7 +251,7 @@ describe("hidden and disabled fields never enforce their required check", () => 
     expect(run(schema, { visibleName: "A", plan: "free" })).not.toBe("valid");
   });
 
-  it("never re-requires a hidden field through a show affect", () => {
+  it("re-requires a hidden field once a show affect reveals it", () => {
     const affectDef: FormDefinition = {
       id: "hidden-affect-fixture",
       fields: [
@@ -262,7 +262,11 @@ describe("hidden and disabled fields never enforce their required check", () => 
         { effect: "show", when: { path: ["toggle"], op: "truthy" }, targets: [["ghost"]] },
       ],
     };
-    expect(run(buildFormSchema(affectDef), { toggle: true })).toBe("valid");
+    const affectSchema = buildFormSchema(affectDef);
+
+    expect(run(affectSchema, { toggle: false })).toBe("valid");
+    expect(run(affectSchema, { toggle: true })).toEqual(["This field is required @ ghost"]);
+    expect(run(affectSchema, { toggle: true, ghost: "filled" })).toBe("valid");
   });
 });
 
