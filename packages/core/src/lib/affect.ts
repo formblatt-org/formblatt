@@ -8,6 +8,12 @@ export interface VisibilityRule {
   conditions: Condition[];
   /** Whether the field's value is cleared while hidden (`hideAndClear`). */
   clearWhenHidden: boolean;
+  /**
+   * Whether a `show` affect targets the field. Only those reveal a statically
+   * `hidden` field — `hide` affects just add reasons to hide, so a hidden
+   * field they target alone stays invisible.
+   */
+  revealsHidden: boolean;
 }
 
 /** Compiled visibility rules, keyed by {@link toPathKey} of the target's path. */
@@ -25,7 +31,7 @@ export function compileAffects(affects: readonly Affect[] = []): VisibilityRules
     const key = toPathKey(path);
     let rule = rules.get(key);
     if (!rule) {
-      rule = { conditions: [], clearWhenHidden: false };
+      rule = { conditions: [], clearWhenHidden: false, revealsHidden: false };
       rules.set(key, rule);
     }
     return rule;
@@ -39,6 +45,7 @@ export function compileAffects(affects: readonly Affect[] = []): VisibilityRules
       // `show` is visible while the condition holds; both hide variants are its inverse
       rule.conditions.push(affect.effect === "show" ? affect.when : { not: affect.when });
       rule.clearWhenHidden ||= affect.effect === "hideAndClear";
+      rule.revealsHidden ||= affect.effect === "show";
     }
   }
 
@@ -58,8 +65,10 @@ export function conditionalRequiredFields(definition: FormDefinition): Condition
     const path = fromPathKey(key);
     const field = resolveFieldByPath(definition, path);
     // disabled fields can never be filled in — even while visible — so they are
-    // never re-required; a revealed hidden field can, so it stays in the list
+    // never re-required; a `hidden` field only counts when a `show` affect can
+    // actually reveal it, otherwise it can never become visible either
     if (!field || field.required === false || field.disabled) continue;
+    if (field.hidden && !rule.revealsHidden) continue;
 
     conditionalFields.push({
       path,

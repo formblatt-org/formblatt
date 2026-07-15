@@ -5,14 +5,14 @@ import type { Affect, Condition, FormDefinition } from "~/types";
 const when: Condition = { path: ["a"], op: "eq", value: "yes" };
 
 describe("compileAffects", () => {
-  it("show pushes the condition as-is", () => {
+  it("show pushes the condition as-is and marks the rule as revealing", () => {
     const rules = compileAffects([{ effect: "show", when, targets: [["x"]] }]);
-    expect(rules.get('["x"]')).toEqual({ conditions: [when], clearWhenHidden: false });
+    expect(rules.get('["x"]')).toEqual({ conditions: [when], clearWhenHidden: false, revealsHidden: true });
   });
 
-  it("hide pushes the negated condition", () => {
+  it("hide pushes the negated condition and never reveals", () => {
     const rules = compileAffects([{ effect: "hide", when, targets: [["x"]] }]);
-    expect(rules.get('["x"]')).toEqual({ conditions: [{ not: when }], clearWhenHidden: false });
+    expect(rules.get('["x"]')).toEqual({ conditions: [{ not: when }], clearWhenHidden: false, revealsHidden: false });
   });
 
   it("hideAndClear also marks the target for clearing", () => {
@@ -36,6 +36,15 @@ describe("compileAffects", () => {
       { effect: "hide", when: other, targets: [["x"]] },
     ]);
     expect(rules.get('["x"]')?.clearWhenHidden).toBe(true);
+  });
+
+  it("keeps revealsHidden once any show rule targets the field", () => {
+    const other: Condition = { path: ["b"], op: "truthy" };
+    const rules = compileAffects([
+      { effect: "hide", when: other, targets: [["x"]] },
+      { effect: "show", when, targets: [["x"]] },
+    ]);
+    expect(rules.get('["x"]')?.revealsHidden).toBe(true);
   });
 
   it("ignores populate affects entirely — they are side effects, not visibility rules", () => {
@@ -76,5 +85,22 @@ describe("conditionalRequiredFields", () => {
     const names = conditionalRequiredFields(def).map(field => field.path.join("."));
     expect(names).not.toContain("note");
     expect(names).not.toContain("ghost");
+  });
+
+  it("excludes a hidden field only hide affects target — it can never become visible", () => {
+    const hiddenDef: FormDefinition = {
+      id: "crf-hidden-fixture",
+      fields: [
+        { name: "confirmPassword", kind: "string", hidden: true },
+        { name: "secret", kind: "string", hidden: true },
+      ],
+      affects: [
+        { effect: "hideAndClear", when, targets: [["confirmPassword"]] },
+        { effect: "show", when, targets: [["secret"]] },
+      ],
+    };
+    const names = conditionalRequiredFields(hiddenDef).map(field => field.path.join("."));
+    expect(names).not.toContain("confirmPassword");
+    expect(names).toContain("secret");
   });
 });

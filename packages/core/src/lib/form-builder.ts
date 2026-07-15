@@ -116,9 +116,10 @@ function buildField(
 /**
  * Whether the field carries its own required check. Not when explicitly
  * optional, targeted by a visibility affect (that case — including a `hidden`
- * field the affect reveals — belongs to {@link withRequiredWhenVisible}, and
- * enforcing it here too would report the same error twice), or never fillable
- * by the user: hidden with no revealing affect, `disabled`, or computed.
+ * field a `show` affect reveals — belongs to {@link withRequiredWhenVisible},
+ * and enforcing it here too would report the same error twice), or never
+ * fillable by the user: hidden with no revealing `show` affect, `disabled`,
+ * or computed.
  */
 function enforcesOwnRequired(
   field: FieldDefinition,

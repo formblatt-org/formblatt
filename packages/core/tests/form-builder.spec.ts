@@ -268,6 +268,25 @@ describe("hidden and disabled fields never enforce their required check", () => 
     expect(run(affectSchema, { toggle: true })).toEqual(["This field is required @ ghost"]);
     expect(run(affectSchema, { toggle: true, ghost: "filled" })).toBe("valid");
   });
+
+  it("never re-requires a hidden field only a hide affect targets", () => {
+    const hideOnlyDef: FormDefinition = {
+      id: "hidden-hide-only-fixture",
+      fields: [
+        { name: "email", kind: "string", required: false },
+        { name: "confirmPassword", kind: "string", hidden: true },
+      ],
+      affects: [
+        { effect: "hideAndClear", when: { path: ["email"], op: "eq", value: "x" }, targets: [["confirmPassword"]] },
+      ],
+    };
+    const hideOnlySchema = buildFormSchema(hideOnlyDef);
+
+    // the hide rule "allows" the field while email != x, but a hide affect
+    // never reveals a hidden field — so it must not be re-required either
+    expect(run(hideOnlySchema, { email: "anything" })).toBe("valid");
+    expect(run(hideOnlySchema, { email: "x" })).toBe("valid");
+  });
 });
 
 describe("buildInitialInput", () => {
