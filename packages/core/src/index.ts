@@ -8,3 +8,4 @@ export * from "./lib/layout";
 export * from "./lib/field";
 export * from "./lib/form-builder";
 export * from "./lib/definition-migrations";
+export * from "./lib/definition-schema";
