@@ -23,6 +23,10 @@ const choices = computed<readonly Option[]>(() => props.options ?? props.field.o
 const ctx = inject(FormContextKey, null);
 const text = computed(() => ctx?.text.value ?? DEFAULT_UI_TEXT);
 
+/** A host-registered control matching this field's `control` name, if any. */
+const customControl = computed(() =>
+  props.field.control ? ctx?.controls[props.field.control] : undefined);
+
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
 
@@ -61,6 +65,14 @@ const onSelectChange = (event: Event) => {
   emit("update:input", value === "" ? undefined : value);
 };
 
+/** A `multiple` enum stores the selected values as a `string[]` — `[]` when none. */
+const onMultiSelectChange = (event: Event) => {
+  const values = [...(event.target as HTMLSelectElement).selectedOptions].map(option => option.value);
+  emit("update:input", values);
+};
+
+const isSelected = (value: string) => Array.isArray(props.input) && props.input.includes(value);
+
 const onCheckboxChange = (event: Event) => {
   emit("update:input", (event.target as HTMLInputElement).checked);
 };
@@ -72,7 +84,38 @@ const onTextInput = (event: Event) => {
 
 <template>
     <div class="field" :class="{ 'is-loading': loading }" :aria-busy="loading">
-    <label>
+    <!-- a host-registered control renders its own label; the scaffold keeps the error list -->
+    <component
+      :is="customControl"
+      v-if="customControl"
+      :field="field"
+      :input="input"
+      :field-props="fieldProps"
+      :aria="aria"
+      :options="choices"
+      :loading="!!loading"
+      :disabled="isDisabled"
+      @update:input="emit('update:input', $event)"
+    />
+
+    <!-- radios label each option, so the group is a fieldset, not another label -->
+    <fieldset v-else-if="field.control === 'radio'" class="radio-group" role="radiogroup" v-bind="aria">
+      <legend v-if="field.label">{{ field.label }}</legend>
+      <label v-for="choice in choices" :key="choice.value" class="radio-option">
+        <input
+          type="radio"
+          :name="fieldProps.name"
+          :value="choice.value"
+          :checked="input === choice.value"
+          :disabled="isDisabled"
+          @change="emit('update:input', choice.value)"
+          @blur="fieldProps.onBlur"
+        />
+        <span>{{ choice.label }}</span>
+      </label>
+    </fieldset>
+
+    <label v-else>
         <span v-if="field.label">
           {{ field.label }}
           <!-- selects show their spinner inside the control instead -->
@@ -82,7 +125,17 @@ const onTextInput = (event: Event) => {
         <!-- an <option> can only hold text, so the spinner is overlaid and the text shifted right -->
         <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
           <span v-if="loading" class="spinner-select" aria-hidden="true" />
-          <select v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
+
+          <!-- no placeholder option: a multi-select needs no deselect affordance -->
+          <select v-if="field.multiple" multiple v-bind="{ ...fieldProps, ...aria }"
+              :disabled="isDisabled" @change="onMultiSelectChange">
+            <option v-for="choice in choices" :key="choice.value" :value="choice.value"
+                :selected="isSelected(choice.value)">
+              {{ choice.label }}
+            </option>
+          </select>
+
+          <select v-else v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
             <option value="">{{ loading ? text.loading : text.selectPlaceholder }}</option>
             <option v-for="choice in choices" :key="choice.value" :value="choice.value">
               {{ choice.label }}
@@ -190,6 +243,38 @@ const onTextInput = (event: Event) => {
   color: #9ca3af;
   background: #f3f4f6;
   cursor: not-allowed;
+}
+
+.radio-group {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.radio-group legend {
+  margin-bottom: .35rem;
+  padding: 0;
+  font-size: .85rem;
+  font-weight: 550;
+  color: #374151;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .15rem 0;
+  font-size: .9rem;
+  color: #1f2937;
+  cursor: pointer;
+}
+
+.radio-option input {
+  margin: 0;
+}
+
+.field select[multiple] {
+  min-height: 6.5rem;
 }
 
 .field-errors {

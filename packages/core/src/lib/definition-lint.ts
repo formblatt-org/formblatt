@@ -8,6 +8,7 @@ import type {
   PathKey,
   ValueField,
 } from "../types";
+import { BUILT_IN_CONTROLS } from "../types";
 import { resolveFieldByNamePath } from "./field";
 import { KNOWN_VALIDATION_TYPES } from "./form-builder";
 
@@ -30,6 +31,17 @@ export interface LintOptions {
    * accepted on every field kind in addition to the built-ins.
    */
   customRuleTypes?: readonly string[];
+  /**
+   * Control names the host registers with `DynamicForm`'s `controls` prop —
+   * accepted in addition to the built-in controls.
+   */
+  controls?: readonly string[];
+}
+
+/** {@link LintOptions} with defaults applied — what the checks receive. */
+interface LintContext {
+  customRuleTypes: readonly string[];
+  controls: readonly string[];
 }
 
 /**
@@ -41,8 +53,12 @@ export interface LintOptions {
  */
 export function lintDefinition(definition: FormDefinition, options?: LintOptions): LintIssue[] {
   const issues: LintIssue[] = [];
+  const context: LintContext = {
+    customRuleTypes: options?.customRuleTypes ?? [],
+    controls: options?.controls ?? [],
+  };
 
-  lintFields(definition, definition.fields, "fields", false, issues, options?.customRuleTypes ?? []);
+  lintFields(definition, definition.fields, "fields", false, issues, context);
   lintAffects(definition, issues);
   lintLayout(definition, issues);
 
@@ -157,7 +173,7 @@ function lintFields(
   location: string,
   inArrayItem: boolean,
   issues: LintIssue[],
-  customRuleTypes: readonly string[],
+  context: LintContext,
 ): void {
   const seen = new Set<string>();
 
@@ -171,7 +187,7 @@ function lintFields(
     if (seen.has(field.name)) error(issues, here, `duplicate field name "${field.name}" among siblings`);
     seen.add(field.name);
 
-    lintValidations(field, here, issues, customRuleTypes);
+    lintValidations(field, here, issues, context);
 
     switch (field.kind) {
       case "object":
@@ -179,7 +195,7 @@ function lintFields(
           error(issues, here, "hidden/disabled on an object field has no rendering effect — set it on its leaf fields");
         }
         lintObjectChecks(field, here, issues);
-        lintFields(definition, field.fields, here, inArrayItem, issues, customRuleTypes);
+        lintFields(definition, field.fields, here, inArrayItem, issues, context);
         break;
 
       case "array":
@@ -189,11 +205,11 @@ function lintFields(
         if (location !== "fields") {
           warning(issues, here, "nested arrays validate but the built-in components cannot render them");
         }
-        lintFields(definition, [field.item], `${here}.item`, true, issues, customRuleTypes);
+        lintFields(definition, [field.item], `${here}.item`, true, issues, context);
         break;
 
       default:
-        lintValueField(definition, field, here, inArrayItem, issues);
+        lintValueField(definition, field, here, inArrayItem, issues, context);
     }
   }
 }
@@ -202,7 +218,7 @@ function lintValidations(
   field: FieldDefinition,
   location: string,
   issues: LintIssue[],
-  customRuleTypes: readonly string[],
+  context: LintContext,
 ): void {
   if (!field.validations?.length) return;
 
@@ -217,7 +233,7 @@ function lintValidations(
       error(issues, location, "remote rules route by `value` — it must name the resolver source");
       continue;
     }
-    if (known.includes(rule.type) || customRuleTypes.includes(rule.type)) continue;
+    if (known.includes(rule.type) || context.customRuleTypes.includes(rule.type)) continue;
     error(issues, location,
       `unknown validation "${rule.type}" for kind "${field.kind}" — the builder would silently drop it (known: ${known.join(", ")})`);
   }
@@ -229,9 +245,23 @@ function lintValueField(
   location: string,
   inArrayItem: boolean,
   issues: LintIssue[],
+  context: LintContext,
 ): void {
   if (field.kind === "enum" && !field.options?.length && !field.optionsSource) {
     warning(issues, location, "static enum with no options accepts no value at all");
+  }
+
+  if (field.multiple && field.kind !== "enum") {
+    error(issues, location, "`multiple` is an enum concern — other kinds hold a single value");
+  }
+
+  if (
+    field.control &&
+    !(BUILT_IN_CONTROLS as readonly string[]).includes(field.control) &&
+    !context.controls.includes(field.control)
+  ) {
+    warning(issues, location,
+      `control "${field.control}" is neither built-in nor registered — the field falls back to a text input`);
   }
 
   if (field.optionsSource) {

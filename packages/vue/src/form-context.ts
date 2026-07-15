@@ -1,4 +1,4 @@
-import { inject, type ComputedRef, type InjectionKey } from "vue";
+import { inject, type Component, type ComputedRef, type InjectionKey } from "vue";
 import { fail } from "@formblatt/core";
 import type { FormDefinition, Option, PathKey, ResolvedNode, ValueField } from "@formblatt/core";
 import type { DynamicFormStore } from "./form-store";
@@ -39,6 +39,14 @@ export interface FormContext {
   text: ComputedRef<UiText>;
 
   /**
+   * Host-registered controls by name (`DynamicForm`'s `controls` prop). A
+   * field whose `control` matches renders that component inside the field
+   * scaffold — it receives {@link CustomControlProps} and emits
+   * `update:input` with the new value.
+   */
+  controls: Record<string, Component>;
+
+  /**
    * Coverage tracking — called by whoever *decides* to place a field, before
    * the visibility `v-if` (a hidden field is still a placed field).
    */
@@ -47,6 +55,25 @@ export interface FormContext {
 }
 
 export type ErrorDisplay = "always" | "touched";
+
+/**
+ * What a host-registered control receives. The scaffold around it (label
+ * omitted — render your own; error list, aria wiring) stays with
+ * `DynamicInput`: spread `aria` onto your focusable element and emit
+ * `update:input` with the new value.
+ */
+export interface CustomControlProps {
+  field: ValueField;
+  input: unknown;
+  /** formisch's element bindings (name, ref, event handlers) — spread onto the control. */
+  fieldProps: Record<string, unknown>;
+  /** aria-invalid / aria-describedby / aria-required, pre-computed. */
+  aria: Record<string, string | undefined>;
+  /** Host-resolved or static choices, when the field has any. */
+  options: readonly Option[];
+  loading: boolean;
+  disabled: boolean;
+}
 
 /** What a {@link SubmitHandler} receives besides the values. */
 export interface SubmitContext {

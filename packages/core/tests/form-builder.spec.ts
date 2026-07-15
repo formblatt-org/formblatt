@@ -335,6 +335,38 @@ describe("hidden and disabled fields never enforce their required check", () => 
   });
 });
 
+describe("multiple enums", () => {
+  const def: FormDefinition = {
+    id: "multi-enum",
+    fields: [
+      {
+        name: "toppings", kind: "enum", multiple: true, requiredMessage: "Pick at least one",
+        options: [{ label: "Cheese", value: "cheese" }, { label: "Ham", value: "ham" }],
+      },
+      { name: "tags", kind: "enum", multiple: true, required: false, optionsSource: { source: "tags" } },
+    ],
+  };
+  const schema = buildFormSchema(def);
+
+  it("accepts a list of declared option values", () => {
+    expect(run(schema, { toppings: ["cheese", "ham"] })).toBe("valid");
+  });
+
+  it("rejects values outside the options", () => {
+    expect(run(schema, { toppings: ["cheese", "pineapple"] })).not.toBe("valid");
+  });
+
+  it("requires at least one choice — [] and undefined both report the required message", () => {
+    expect(run(schema, { toppings: [] })).toEqual(["Pick at least one @ toppings"]);
+    expect(run(schema, { toppings: undefined })).toEqual(["Pick at least one @ toppings"]);
+  });
+
+  it("lets an optional dynamic multi-enum hold any strings or stay unset", () => {
+    expect(run(schema, { toppings: ["ham"], tags: ["a", "b"] })).toBe("valid");
+    expect(run(schema, { toppings: ["ham"] })).toBe("valid");
+  });
+});
+
 describe("custom validation rules", () => {
   const def: FormDefinition = {
     id: "custom-rules",

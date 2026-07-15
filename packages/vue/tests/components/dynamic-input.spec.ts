@@ -59,6 +59,35 @@ describe("DynamicInput value normalization", () => {
     await wrapper.find("input").setValue(true);
     expect(lastInput(wrapper)).toBe(true);
   });
+
+  it("renders a radio group and emits the picked option", async () => {
+    const wrapper = mountInput({
+      kind: "enum", control: "radio",
+      options: [{ label: "Red", value: "red" }, { label: "Blue", value: "blue" }],
+    }, { input: "blue" });
+
+    const radios = wrapper.findAll("input[type='radio']");
+    expect(radios).toHaveLength(2);
+    expect(wrapper.find("fieldset[role='radiogroup'] legend").text()).toBe("X");
+    expect((radios[1]!.element as HTMLInputElement).checked).toBe(true);
+
+    await radios[0]!.setValue(true);
+    expect(lastInput(wrapper)).toBe("red");
+  });
+
+  it("emits the selection list of a multiple enum", async () => {
+    const wrapper = mountInput({
+      kind: "enum", control: "select", multiple: true,
+      options: [{ label: "Cheese", value: "cheese" }, { label: "Ham", value: "ham" }],
+    }, { input: ["ham"] });
+
+    const select = wrapper.find("select");
+    expect(select.attributes("multiple")).toBeDefined();
+    expect((wrapper.findAll("option")[1]!.element as HTMLOptionElement).selected).toBe(true);
+
+    await select.setValue(["cheese", "ham"]);
+    expect(lastInput(wrapper)).toEqual(["cheese", "ham"]);
+  });
 });
 
 describe("DynamicInput accessibility contract", () => {

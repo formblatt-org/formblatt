@@ -100,8 +100,11 @@ export const FieldDefinitionSchema: v.GenericSchema<FieldDefinition> = v.lazy(()
 const ValueFieldSchema = v.object({
   ...baseFieldEntries,
   kind: v.picklist(["string", "number", "boolean", "date", "enum"]),
-  control: v.optional(v.picklist(["text", "email", "password", "number", "checkbox", "select", "textarea", "date"])),
+  // any string: names outside the built-ins address host-registered controls;
+  // the lint warns when nothing renders a name
+  control: v.optional(v.string()),
   options: v.optional(v.array(OptionSchema)),
+  multiple: v.optional(v.boolean()),
   optionsSource: v.optional(v.object({ source: v.string(), dependsOn: v.optional(PathsSchema) })),
   initial: v.optional(v.unknown()),
   computed: v.optional(ComputedSchema),

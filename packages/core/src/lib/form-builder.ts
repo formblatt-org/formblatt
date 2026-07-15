@@ -284,10 +284,20 @@ function buildNumberSchema(field: ValueField, required: boolean, context: BuildC
  * A deselected select stores `undefined`, so a required enum reports its type
  * issue as the missing-value case. Static options become a picklist; dynamic
  * ones are only known once the host resolves them, so the schema requires a
- * string — and for a required field also rejects `""`.
+ * string — and for a required field also rejects `""`. A `multiple` enum
+ * holds a `string[]` of those values; `required` demands at least one.
  */
 function buildEnumSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const message = required ? requiredMessageOf(field, context) : undefined;
+
+  if (field.multiple) {
+    const item = field.optionsSource
+      ? v.string()
+      : v.picklist((field.options ?? []).map(option => option.value));
+    const base = v.array(item, message);
+    const withMin = message ? context.kit.pipe(base, v.minLength(1, message)) : base;
+    return withValidations(withMin, field.validations, {}, context);
+  }
 
   const base = field.optionsSource
     ? (message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string())

@@ -85,6 +85,13 @@ export interface Option {
   value: string;
 }
 
+/** The controls `DynamicInput` renders itself; anything else must be a host-registered control. */
+export const BUILT_IN_CONTROLS = [
+  "text", "email", "password", "number", "checkbox", "select", "textarea", "date", "radio",
+] as const;
+
+export type BuiltInControl = (typeof BUILT_IN_CONTROLS)[number];
+
 /**
  * A leaf field holding a single value — the only kind that renders as an
  * input control.
@@ -92,16 +99,28 @@ export interface Option {
  * - `date` values are ISO strings (`"1996-06-10"`), never `Date` objects.
  * - `enum` with static {@link options} validates against exactly those values;
  *   with {@link optionsSource} it accepts any string, since the valid set is
- *   only known once the host resolves it.
+ *   only known once the host resolves it. With {@link multiple} the value is
+ *   a `string[]` instead.
  * - A deselected select and an emptied number input store `undefined`, not
  *   `""` / `NaN`.
  */
 export interface ValueField extends BaseField {
   kind: "string" | "number" | "boolean" | "date" | "enum";
-  /** Which input control to render — presentation only. Defaults to a text input. */
-  control?: "text" | "email" | "password" | "number" | "checkbox" | "select" | "textarea" | "date";
+  /**
+   * Which input control to render — presentation only. Defaults to a text
+   * input. A name outside {@link BUILT_IN_CONTROLS} renders the host's
+   * registered control of that name (`DynamicForm`'s `controls` prop).
+   */
+  control?: BuiltInControl | (string & {});
   /** Static choice list for `enum` fields. */
   options?: readonly Option[];
+  /**
+   * `enum` only: the value is a `string[]` of distinct choices — rendered as
+   * a multi-select. `required` demands at least one choice; note a
+   * visibility-controlled required multi-enum accepts an empty selection
+   * (`[]` counts as filled there).
+   */
+  multiple?: boolean;
   /**
    * Host-resolved choices for `enum` fields; `source` routes to the host's
    * `OptionsResolver`. With `dependsOn` the options cascade: a dependency

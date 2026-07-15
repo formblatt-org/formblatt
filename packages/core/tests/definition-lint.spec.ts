@@ -119,6 +119,20 @@ describe("field-level checks", () => {
     expect(lint(def, "warning")).toEqual([expect.stringContaining("accepts no value")]);
   });
 
+  it("rejects `multiple` on non-enum kinds", () => {
+    const def: FormDefinition = { id: "x", fields: [{ name: "s", kind: "string", multiple: true }] };
+    expect(lint(def, "error")).toEqual([expect.stringContaining("`multiple` is an enum concern")]);
+  });
+
+  it("warns on unregistered control names, accepts registered ones", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [{ name: "score", kind: "number", control: "rating" }],
+    };
+    expect(lint(def, "warning")).toEqual([expect.stringContaining('control "rating" is neither built-in nor registered')]);
+    expect(lintDefinition(def, { controls: ["rating"] })).toEqual([]);
+  });
+
   it("rejects hidden/disabled on container fields (they have no rendering effect)", () => {
     const def: FormDefinition = {
       id: "x",

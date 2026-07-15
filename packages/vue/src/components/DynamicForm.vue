@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, provide, useTemplateRef, type ComponentPublicInstance } from "vue";
+import { computed, nextTick, onMounted, provide, useTemplateRef, type Component, type ComponentPublicInstance } from "vue";
 import { Form, reset, useForm } from "@formisch/vue";
 import {
   buildFormSchema,
@@ -59,6 +59,8 @@ const props = defineProps<{
   resolveValidation?: ValidationResolver;
   /** Host-defined validation rules, addressable from any field's `validations` by key. */
   rules?: Record<string, ValidationFactory>;
+  /** Host-registered controls by name — a field's `control` outside the built-ins renders these. */
+  controls?: Record<string, Component>;
   /** `"touched"` hides a field's errors until it is focused or a submit is attempted. Default: `"always"`. */
   errorDisplay?: ErrorDisplay;
   /** Label of the default submit button. Ignored when the default slot is replaced. */
@@ -80,6 +82,7 @@ const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 // remount anyway, since useForm builds its store only once.
 const definition = validateDefinition(migrateDefinition(props.definition), {
   customRuleTypes: props.rules && Object.keys(props.rules),
+  controls: props.controls && Object.keys(props.controls),
 });
 
 const form = useForm({
@@ -180,7 +183,14 @@ async function focusFirstInvalid(element: HTMLFormElement): Promise<void> {
     await Promise.resolve();
   }
   if (form.isValid) return;
-  element.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+
+  // aria-invalid may sit on a group container (radio fieldset) — focus its first control then
+  const invalid = element.querySelector<HTMLElement>('[aria-invalid="true"]');
+  if (!invalid) return;
+  const control = invalid.matches("input, select, textarea")
+    ? invalid
+    : invalid.querySelector<HTMLElement>("input, select, textarea");
+  (control ?? invalid).focus();
 }
 
 provide(FormContextKey, {
@@ -188,6 +198,7 @@ provide(FormContextKey, {
   definition,
   errorDisplay: props.errorDisplay ?? "always",
   text,
+  controls: props.controls ?? {},
   resolvedLayout,
   resolveField,
   isVisible,

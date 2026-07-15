@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { defineComponent } from "vue";
 import { mount } from "@vue/test-utils";
 import { check } from "valibot";
 import type { FormDefinition, PopulateResolver } from "@formblatt/core";
@@ -271,6 +272,31 @@ describe("DynamicForm error display and visibility", () => {
 
     expect(wrapper.find("details").exists()).toBe(true);
     expect(wrapper.findAll(".field span").map(node => node.text())).toContain("Secret");
+  });
+});
+
+describe("DynamicForm custom controls", () => {
+  it("renders a registered control inside the scaffold and writes its value", async () => {
+    const Rating = defineComponent({
+      props: ["field", "input", "aria"],
+      emits: ["update:input"],
+      template: `<button type="button" class="rating" v-bind="aria" @click="$emit('update:input', 5)">rate</button>`,
+    });
+    const definition: FormDefinition = {
+      id: "form-controls",
+      fields: [{ name: "score", kind: "number", control: "rating", required: false }],
+    };
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, {
+      props: { definition, onSubmit, controls: { rating: Rating } },
+    });
+
+    await wrapper.find("button.rating").trigger("click");
+    await settle();
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ score: 5 });
   });
 });
 
