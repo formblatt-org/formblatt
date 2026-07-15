@@ -57,7 +57,8 @@ export function conditionalRequiredFields(definition: FormDefinition): Condition
   for (const [key, rule] of compileAffects(definition.affects)) {
     const path = fromPathKey(key);
     const field = resolveFieldByPath(definition, path);
-    if (!field || field.required === false) continue;
+    // hidden/disabled fields can never be filled in, so they are never re-required
+    if (!field || field.required === false || field.hidden || field.disabled) continue;
 
     conditionalFields.push({
       path,

@@ -227,6 +227,45 @@ describe("conditional fields never double-report their required error", () => {
   });
 });
 
+describe("hidden and disabled fields never enforce their required check", () => {
+  const def: FormDefinition = {
+    id: "hidden-disabled-fixture",
+    fields: [
+      { name: "visibleName", kind: "string" },
+      { name: "trackingId", kind: "string", hidden: true },
+      { name: "plan", kind: "enum", disabled: true, options: [{ label: "Pro", value: "pro" }] },
+      { name: "vat", kind: "number", disabled: true, validations: [{ type: "minValue", value: 0, message: "Min. 0" }] },
+    ],
+  };
+  const schema = buildFormSchema(def);
+
+  it("passes hidden and disabled required fields left undefined (the invisible-blocker trap)", () => {
+    expect(run(schema, { visibleName: "A" })).toBe("valid");
+  });
+
+  it("still applies content validations to a filled disabled field", () => {
+    expect(run(schema, { visibleName: "A", vat: -1 })).toEqual(["Min. 0 @ vat"]);
+  });
+
+  it("still restricts a filled disabled enum to its options", () => {
+    expect(run(schema, { visibleName: "A", plan: "free" })).not.toBe("valid");
+  });
+
+  it("never re-requires a hidden field through a show affect", () => {
+    const affectDef: FormDefinition = {
+      id: "hidden-affect-fixture",
+      fields: [
+        { name: "toggle", kind: "boolean", required: false },
+        { name: "ghost", kind: "string", hidden: true },
+      ],
+      affects: [
+        { effect: "show", when: { path: ["toggle"], op: "truthy" }, targets: [["ghost"]] },
+      ],
+    };
+    expect(run(buildFormSchema(affectDef), { toggle: true })).toBe("valid");
+  });
+});
+
 describe("buildInitialInput", () => {
   it("collects initial values and omits fields without one", () => {
     const def: FormDefinition = {
