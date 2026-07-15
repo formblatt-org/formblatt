@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, provide } from "vue";
+import { computed, nextTick, onMounted, provide, useTemplateRef, type ComponentPublicInstance } from "vue";
 import { Form, reset, useForm } from "@formisch/vue";
 import {
   buildFormSchema,
@@ -98,6 +98,25 @@ const submitForm = (values: unknown) => {
   emit("submit", values);
 }
 
+// ---- focus management: a failed submit focuses its first invalid control ----
+
+const formComponent = useTemplateRef<ComponentPublicInstance>("formEl");
+
+onMounted(() => {
+  const element = formComponent.value?.$el as HTMLFormElement | undefined;
+  element?.addEventListener("submit", () => void focusFirstInvalid(element));
+});
+
+/** The native submit fires before validation settles — wait it out, then check. */
+async function focusFirstInvalid(element: HTMLFormElement): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await nextTick();
+    await Promise.resolve();
+  }
+  if (form.isValid) return;
+  element.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+}
+
 provide(FormContextKey, {
   form,
   definition,
@@ -117,7 +136,7 @@ defineExpose({ form, isPopulating, isBusy })
 </script>
 
 <template>
-  <Form :of="form" class="dynamic-form" @submit="submitForm">
+  <Form ref="formEl" :of="form" class="dynamic-form" @submit="submitForm">
     <!--
       populate writes many fields at once, so the whole form blocks. inert stops
       clicks, focus and tabbing in one attribute; `|| undefined` matters because

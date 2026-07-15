@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, useId } from "vue";
 import type { FieldElementProps } from "@formisch/vue";
 import type { Option, ValueField } from "@formblatt/core";
 
@@ -20,6 +20,23 @@ const choices = computed<readonly Option[]>(() => props.options ?? props.field.o
 
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
+
+const errorsId = useId();
+const isInvalid = computed(() => !!props.errors?.length);
+
+/** Static approximation — a visibility-conditional required varies at runtime, which aria can live with. */
+const isRequired = computed(() =>
+  props.field.required !== false && !props.field.disabled && !props.field.computed);
+
+/**
+ * The accessibility contract of every control: it reports invalid, points at
+ * its error list, and announces required-ness. Spread AFTER `fieldProps`.
+ */
+const aria = computed(() => ({
+  "aria-invalid": isInvalid.value || undefined,
+  "aria-describedby": isInvalid.value ? errorsId : undefined,
+  "aria-required": isRequired.value || undefined,
+}));
 
 /**
  * An emptied number input reports `valueAsNumber` as `NaN` — store `undefined`
@@ -60,7 +77,7 @@ const onTextInput = (event: Event) => {
         <!-- an <option> can only hold text, so the spinner is overlaid and the text shifted right -->
         <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
           <span v-if="loading" class="spinner-select" aria-hidden="true" />
-          <select v-bind="fieldProps" :value="input" :disabled="isDisabled" @change="onSelectChange">
+          <select v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
             <option value="">{{ loading ? 'Loading…' : '— Select —' }}</option>
             <option v-for="choice in choices" :key="choice.value" :value="choice.value">
               {{ choice.label }}
@@ -68,17 +85,18 @@ const onTextInput = (event: Event) => {
           </select>
         </div>
 
-        <input v-else-if="field.control === 'checkbox'" type="checkbox" v-bind="fieldProps"
+        <input v-else-if="field.control === 'checkbox'" type="checkbox" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :checked="!!input" @change="onCheckboxChange" />
 
-        <input v-else-if="field.control === 'number'" type="number" v-bind="fieldProps"
+        <input v-else-if="field.control === 'number'" type="number" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :value="input" @input="onNumberInput" />
 
-        <input v-else :type="field.control ?? 'text'" v-bind="fieldProps"
+        <input v-else :type="field.control ?? 'text'" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :value="input" @input="onTextInput" />
     </label>
 
-    <ul v-if="errors" class="field-errors">
+    <!-- role="alert" announces newly appearing errors to screen readers -->
+    <ul v-if="errors" :id="errorsId" role="alert" class="field-errors">
       <li v-for="error in errors" :key="error">{{ error }}</li>
     </ul>
     </div>
