@@ -6,6 +6,7 @@ import {
   move,
   remove,
   reset,
+  setErrors,
   setInput,
   swap,
   validate,
@@ -66,6 +67,19 @@ export function resetField(form: DynamicFormStore, path: readonly PathKey[]): vo
 /** Re-runs validation — needed after a programmatic write that may have cleared errors. */
 export function revalidate(form: DynamicFormStore): void {
   validate(form);
+}
+
+/**
+ * Sets the errors of the field at `path`, or clears them with `null` — how
+ * server-side validation lands on a field. The next validation run (an edit,
+ * under the default `revalidate: "input"`) replaces them with schema results.
+ */
+export function writeFieldErrors(
+  form: DynamicFormStore,
+  path: readonly PathKey[],
+  errors: readonly string[] | null,
+): void {
+  setErrors(form, args(path, { errors: errors?.length ? [...errors] : null }));
 }
 
 /**

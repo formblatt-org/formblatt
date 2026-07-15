@@ -68,20 +68,58 @@ describe("DynamicForm rendering", () => {
 });
 
 describe("DynamicForm submit", () => {
-  it("emits the parsed values on a valid submit", async () => {
-    const wrapper = mount(DynamicForm, { props: { definition: simple } });
+  it("calls the handler with the parsed values on a valid submit", async () => {
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, { props: { definition: simple, onSubmit } });
 
     await wrapper.find("input").setValue("Ada");
     await settle();
     await wrapper.find("form").trigger("submit");
     await settle(5);
 
-    const emitted = wrapper.emitted("submit");
-    expect(emitted).toHaveLength(1);
-    expect(emitted![0]![0]).toMatchObject({ firstName: "Ada" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ firstName: "Ada" });
   });
 
-  it("does not emit while a populate lookup is in flight, then works again", async () => {
+  it("stays isSubmitting while an async handler is pending", async () => {
+    const pending = deferred<void>();
+    const onSubmit = vi.fn(() => pending.promise);
+    const wrapper = mount(DynamicForm, { props: { definition: simple, onSubmit } });
+
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(wrapper.find("button[type='submit']").attributes("disabled")).toBeDefined();
+
+    pending.release();
+    await settle(5);
+    expect(wrapper.find("button[type='submit']").attributes("disabled")).toBeUndefined();
+  });
+
+  it("maps server-side errors onto fields through the submit context", async () => {
+    const wrapper = mount(DynamicForm, {
+      props: {
+        definition: simple,
+        onSubmit: (_values, { setFieldErrors }) =>
+          setFieldErrors({ firstName: "Already taken", "address.city": ["Unknown city"] }),
+      },
+    });
+
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+
+    const errors = wrapper.findAll(".field-errors li").map(node => node.text());
+    expect(errors).toEqual(["Already taken", "Unknown city"]);
+    expect(wrapper.find("input").attributes("aria-invalid")).toBe("true");
+
+    // the user's next edit revalidates and replaces the server error
+    await wrapper.find("input").setValue("Fresh");
+    await settle(5);
+    expect(wrapper.findAll(".field-errors li").map(node => node.text())).not.toContain("Already taken");
+  });
+
+  it("does not submit while a populate lookup is in flight, then works again", async () => {
     const definition: FormDefinition = {
       id: "form-populate",
       fields: [
@@ -92,15 +130,16 @@ describe("DynamicForm submit", () => {
     };
     const pending = deferred<Record<string, unknown>>();
     const resolvePopulate: PopulateResolver = () => pending.promise;
+    const onSubmit = vi.fn();
 
-    const wrapper = mount(DynamicForm, { props: { definition, resolvePopulate } });
+    const wrapper = mount(DynamicForm, { props: { definition, resolvePopulate, onSubmit } });
 
     await wrapper.find("select").setValue("alice");
     await settle();
 
     await wrapper.find("form").trigger("submit");
     await settle(5);
-    expect(wrapper.emitted("submit")).toBeUndefined();
+    expect(onSubmit).not.toHaveBeenCalled();
     expect(wrapper.find("button[type='submit']").attributes("disabled")).toBeDefined();
 
     pending.release({ firstName: "Alice" });
@@ -108,7 +147,7 @@ describe("DynamicForm submit", () => {
 
     await wrapper.find("form").trigger("submit");
     await settle(5);
-    expect(wrapper.emitted("submit")).toHaveLength(1);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("focuses the first invalid control after a failed submit", async () => {
@@ -119,15 +158,16 @@ describe("DynamicForm submit", () => {
         { name: "lastName", kind: "string", label: "Last name", required: false },
       ],
     };
+    const onSubmit = vi.fn();
     const wrapper = mount(DynamicForm, {
-      props: { definition: strict },
+      props: { definition: strict, onSubmit },
       attachTo: document.body,
     });
 
     await wrapper.find("form").trigger("submit");
     await settle(6);
 
-    expect(wrapper.emitted("submit")).toBeUndefined();
+    expect(onSubmit).not.toHaveBeenCalled();
     const focused = document.activeElement as HTMLInputElement | null;
     expect(focused?.getAttribute("aria-invalid")).toBe("true");
 

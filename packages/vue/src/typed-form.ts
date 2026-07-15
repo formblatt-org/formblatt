@@ -3,7 +3,8 @@ import DynamicLayout from "./components/DynamicLayout.vue";
 import DynamicSection from "./components/DynamicSection.vue";
 import DynamicField from "./components/DynamicField.vue";
 import DynamicFieldArray from "./components/DynamicFieldArray.vue";
-import type { FormDefinition, PathKey } from "@formblatt/core";
+import type { Computed, FieldDefinition, FormDefinition, Option, PathKey } from "@formblatt/core";
+import type { SubmitContext } from "./form-context";
 
 // ---- name extraction from a literal-typed definition ----
 
@@ -23,6 +24,55 @@ type NodeSectionIds<N> = N extends { type: "section"; id: infer I extends string
 
 /** Ids of sections (at any depth) declared in the definition's layout. */
 export type SectionIds<T extends FormDefinition> = NodeSectionIds<NonNullable<T["layout"]>[number]>;
+
+// ---- output inference from a literal-typed definition ----
+
+type Prettify<T> = { [K in keyof T]: T[K] } & {};
+
+/**
+ * Top-level names a visibility affect targets — hidden fields submit as
+ * `undefined`, so they type as optional. Nested (multi-segment) targets are
+ * not narrowed; their leaf keeps its base type.
+ */
+type AffectTargetNames<T extends FormDefinition> =
+  NonNullable<T["affects"]>[number] extends infer A
+    ? A extends { effect: "show" | "hide" | "hideAndClear"; targets: infer TS extends readonly (readonly PathKey[])[] }
+      ? TS[number] extends infer P
+        ? P extends readonly [infer N extends string] ? N : never
+        : never
+      : never
+    : never;
+
+/** Optional in the submitted data: declared optional, never user-fillable, or visibility-controlled. */
+type IsOptionalField<F, C extends string> =
+  F extends { required: false } | { hidden: true } | { disabled: true } | { computed: Computed }
+    ? true
+    : F extends { name: C } ? true : false;
+
+/** The value one field submits. Static enums narrow to their option values. */
+type FieldOutput<F> =
+  | (F extends { kind: "enum"; options: infer O extends readonly Option[] } ? O[number]["value"]
+    : F extends { kind: "string" | "enum" | "date" } ? string
+    : F extends { kind: "number" } ? number
+    : F extends { kind: "boolean" } ? boolean
+    : F extends { kind: "object"; fields: infer FS extends readonly FieldDefinition[] } ? FieldsOutput<FS, never>
+    : F extends { kind: "array"; item: infer I extends FieldDefinition } ? FieldOutput<I>[]
+    : unknown)
+  | (F extends { nullable: true } ? null : never);
+
+type FieldsOutput<FS extends readonly FieldDefinition[], C extends string> = Prettify<
+  { [F in FS[number] as IsOptionalField<F, C> extends true ? never : F["name"]]: FieldOutput<F> } &
+  { [F in FS[number] as IsOptionalField<F, C> extends true ? F["name"] : never]?: FieldOutput<F> }
+>;
+
+/**
+ * The submitted data shape of a literal-typed definition: required fields are
+ * present, optional / computed / visibility-controlled ones may be absent,
+ * static enums narrow to their option values. An approximation by design —
+ * the runtime contract is the built Valibot schema.
+ */
+export type InferFormOutput<T extends FormDefinition> =
+  FieldsOutput<T["fields"], AffectTargetNames<T>>;
 
 // ---- component re-typing (type-level only, zero runtime cost) ----
 
@@ -48,7 +98,9 @@ export function defineFormDefinition<const T extends FormDefinition>(definition:
 export function createTypedForm<const T extends FormDefinition>(definition: T) {
   return {
     definition,
-    DynamicForm,
+    DynamicForm: DynamicForm as WithProps<typeof DynamicForm, {
+      onSubmit?: (values: InferFormOutput<T>, context: SubmitContext) => unknown | Promise<unknown>;
+    }>,
     DynamicLayout,
     DynamicSection: DynamicSection as WithProps<typeof DynamicSection, { id: SectionIds<T> }>,
     DynamicField: DynamicField as WithProps<typeof DynamicField, { name?: ValueFieldNames<T>; path?: PathKey[] }>,

@@ -48,6 +48,26 @@ export interface FormContext {
 
 export type ErrorDisplay = "always" | "touched";
 
+/** What a {@link SubmitHandler} receives besides the values. */
+export interface SubmitContext {
+  form: DynamicFormStore;
+  /**
+   * Maps server-side validation errors onto fields, so they render in place
+   * like schema errors. Keys are dotted field names (`"email"`,
+   * `"address.city"`); values one message or several. Unknown names are
+   * skipped with a warning. The user's next edit revalidates and replaces them.
+   */
+  setFieldErrors(errors: Record<string, string | readonly string[]>): void;
+}
+
+/**
+ * The host's submit handler — `DynamicForm`'s `@submit`. Runs only when the
+ * schema passed. May be async: the form stays `isSubmitting` until the
+ * returned promise settles, so a server roundtrip keeps the button disabled.
+ * Report server-side field errors through {@link SubmitContext.setFieldErrors}.
+ */
+export type SubmitHandler = (values: unknown, context: SubmitContext) => unknown | Promise<unknown>;
+
 /**
  * Every built-in UI string, overridable per form via `DynamicForm`'s `text`
  * prop — the i18n hook. `requiredMessage` is compiled into the schema at

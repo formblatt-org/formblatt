@@ -8,6 +8,8 @@ import {
   isValueField,
   migrateDefinition,
   normalizeLayout,
+  reportError,
+  resolveFieldByNamePath,
   resolveNodes,
   validateDefinition,
   warn,
@@ -20,8 +22,16 @@ import type {
   PopulateResolver,
   ValueField,
 } from "@formblatt/core";
-import { DEFAULT_UI_TEXT, FormContextKey, type ErrorDisplay, type ResolvedSection, type UiText } from "../form-context";
-import { createReader, isFormDirty } from "../form-store";
+import {
+  DEFAULT_UI_TEXT,
+  FormContextKey,
+  type ErrorDisplay,
+  type ResolvedSection,
+  type SubmitContext,
+  type SubmitHandler,
+  type UiText,
+} from "../form-context";
+import { createReader, isFormDirty, writeFieldErrors } from "../form-store";
 import { useCoverageWarnings } from "../internal/coverage";
 import { useAffects } from "../composables/useAffects";
 import { usePopulate } from "../composables/usePopulate";
@@ -49,9 +59,14 @@ const props = defineProps<{
   submitLabel?: string;
   /** Overrides for the built-in UI strings — the i18n hook. Merged over English defaults. */
   text?: Partial<UiText>;
+  /**
+   * `@submit` — called with the parsed values once the schema passed. Declared
+   * as a prop (not an emit) so an async handler can be awaited: the form stays
+   * `isSubmitting` until it settles, and server-side errors map back through
+   * the context's `setFieldErrors`.
+   */
+  onSubmit?: SubmitHandler;
 }>()
-
-const emit = defineEmits<{ submit: [values: unknown] }>()
 
 const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 
@@ -106,10 +121,35 @@ const isSectionVisible = (section: ResolvedSection): boolean =>
   evaluate(section.visibleWhen, read) &&
   section.children.some(child => child.type === "field" && isVisible(child.path));
 
-const submitForm = (values: unknown) => {
+/** What the host's submit handler receives besides the values. */
+const submitContext: SubmitContext = {
+  form,
+  setFieldErrors(errors) {
+    for (const [name, messages] of Object.entries(errors)) {
+      const path = name.split(".");
+      if (!resolveFieldByNamePath(definition.fields, path)) {
+        warn("form", `setFieldErrors: unknown field "${name}" — skipped`);
+        continue;
+      }
+      writeFieldErrors(form, path, typeof messages === "string" ? [messages] : messages);
+    }
+  },
+};
+
+/**
+ * Awaited by formisch's submit pipeline, so `isSubmitting` spans an async
+ * handler. A rejection is reported, not rethrown — the form must survive a
+ * failed server call.
+ */
+const submitForm = async (values: unknown) => {
   // a disabled button does not stop submit(form) or requestSubmit()
   if (isBusy.value) return;
-  emit("submit", values);
+
+  try {
+    await props.onSubmit?.(values, submitContext);
+  } catch (cause) {
+    reportError("form", "submit handler failed", cause);
+  }
 }
 
 // ---- focus management: a failed submit focuses its first invalid control ----
