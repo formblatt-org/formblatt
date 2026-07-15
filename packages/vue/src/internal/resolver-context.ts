@@ -1,0 +1,38 @@
+import { reactive } from "vue";
+import { toPathKey, type PathKey, type ValueReader } from "@formblatt/core";
+
+/** A list of dependency paths, as `optionsSource.dependsOn` / `computed.dependsOn` declare them. */
+export type DependencyPaths = readonly (readonly PathKey[])[];
+
+/**
+ * Reads declared dependencies into the `deps` record a host resolver receives,
+ * keyed by each path's LAST segment — `dependsOn: [["country"]]` arrives as
+ * `deps.country`.
+ */
+export function readDependencies(read: ValueReader, paths: DependencyPaths): Record<string, unknown> {
+  const deps: Record<string, unknown> = {};
+
+  for (const path of paths) {
+    const name = String(path[path.length - 1]);
+    deps[name] = read(path);
+  }
+
+  return deps;
+}
+
+/** Whether every dependency holds a value — a dependent field is meaningless otherwise. */
+export function allDependenciesFilled(values: readonly unknown[]): boolean {
+  return values.every(value => value != null && value !== "");
+}
+
+/** A path-addressed reactive boolean (loading, computing) for templates to read. */
+export function createPathFlags() {
+  const flags = reactive<Record<string, boolean>>({});
+
+  return {
+    set: (path: readonly PathKey[], value: boolean) => {
+      flags[toPathKey(path)] = value;
+    },
+    isSet: (path: readonly PathKey[]) => !!flags[toPathKey(path)],
+  };
+}
