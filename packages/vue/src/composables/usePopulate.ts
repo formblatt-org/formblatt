@@ -1,5 +1,5 @@
 import { computed, ref, watch } from "vue";
-import { isEmpty, reportError, toPathKey, warn } from "@formblatt/core";
+import { isEmpty, reportError, resolveFieldByNamePath, toPathKey, warn } from "@formblatt/core";
 import type {
   Affect,
   FormDefinition,
@@ -11,7 +11,6 @@ import { createLatestOnly } from "../internal/latest-only";
 import {
   readAllInput,
   readInput,
-  resetField,
   revalidate,
   writeInput,
   type DynamicFormStore,
@@ -22,12 +21,16 @@ type PopulateAffect = Extract<Affect, { effect: "populate" }>;
 const isPopulateAffect = (affect: Affect): affect is PopulateAffect =>
   affect.effect === "populate";
 
+/** The values a rule overwrote (pre-populate), keyed by entry name — what a revert restores. */
+type Overwritten = Map<string, unknown>;
+
 /**
  * Runs the definition's `populate` affects: a trigger taking a non-empty value
  * calls the host resolver and writes its entries into the form; emptying the
- * trigger reverts everything that rule wrote, so a deselected profile leaves
- * nothing of itself behind. Returns `isPopulating`, true while any lookup is
- * in flight — populate writes many fields at once, so the form blocks meanwhile.
+ * trigger restores every value the rule overwrote — a user's earlier input
+ * included — so a deselected profile leaves nothing of itself behind. Returns
+ * `isPopulating`, true while any lookup is in flight — populate writes many
+ * fields at once, so the form blocks meanwhile.
  */
 export function usePopulate(
   form: DynamicFormStore,
@@ -42,17 +45,17 @@ export function usePopulate(
     warn("populate", "the definition declares populate affects but no PopulateResolver was given — they will not run");
   }
 
-  /** Field names each rule last wrote, keyed by its trigger path, so they can be reverted. */
-  const writtenByRule = new Map<string, string[]>();
+  /** Each rule's pre-populate values, keyed by its trigger path, so they can be restored. */
+  const overwrittenByRule = new Map<string, Overwritten>();
 
   const revert = (rule: PopulateAffect) => {
     const key = toPathKey(rule.trigger);
-    const written = writtenByRule.get(key);
-    if (!written?.length) return;
+    const overwritten = overwrittenByRule.get(key);
+    if (!overwritten?.size) return;
 
-    written.forEach(name => resetField(form, [name]));
-    writtenByRule.delete(key);
-    // the reverted fields dropped their errors along with their values — keep isValid truthful
+    overwritten.forEach((previous, name) => writeInput(form, name.split("."), previous));
+    overwrittenByRule.delete(key);
+    // the restored fields changed values wholesale — keep isValid truthful
     revalidate(form);
   };
 
@@ -67,7 +70,7 @@ export function usePopulate(
       });
 
       if (!isCurrent()) return; // the trigger changed again while this lookup was in flight
-      writtenByRule.set(toPathKey(rule.trigger), applyResult(form, result, rule.allow));
+      applyResult(form, definition, rule, result, overwrittenByRule);
     } catch (cause) {
       reportError("populate", `source "${rule.source}" failed`, cause);
     } finally {
@@ -94,23 +97,35 @@ export function usePopulate(
 
 /**
  * Writes the resolver's entries, skipping fields the `allow` whitelist
- * excludes. Returns the names actually written — what a later revert undoes.
+ * excludes and names that resolve to no field. Before each name's FIRST write
+ * it records the value being overwritten, so a later revert restores what the
+ * user (or the initial input) had there — not the field's reset state.
  */
 function applyResult(
   form: DynamicFormStore,
+  definition: FormDefinition,
+  rule: PopulateAffect,
   result: PopulateResult,
-  allow?: readonly string[],
-): string[] {
-  const allowed = allow && new Set(allow);
-  const written: string[] = [];
+  overwrittenByRule: Map<string, Overwritten>,
+): void {
+  const allowed = rule.allow && new Set(rule.allow);
+  const key = toPathKey(rule.trigger);
+  const overwritten = overwrittenByRule.get(key) ?? new Map<string, unknown>();
 
   for (const { name, value } of toEntries(result)) {
     if (allowed && !allowed.has(name)) continue;
-    writeInput(form, [name], value);
-    written.push(name);
+
+    const path = name.split(".");
+    if (!resolveFieldByNamePath(definition.fields, path)) {
+      warn("populate", `resolver returned unknown field "${name}" — skipped`);
+      continue;
+    }
+
+    if (!overwritten.has(name)) overwritten.set(name, readInput(form, path));
+    writeInput(form, path, value);
   }
 
-  return written;
+  if (overwritten.size) overwrittenByRule.set(key, overwritten);
 }
 
 /** A resolver may return a list of entries, a single entry, or a plain `{ name: value }` record. */

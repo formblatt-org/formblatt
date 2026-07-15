@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { FormDefinition, PopulateResolver } from "@formblatt/core";
 import { usePopulate } from "../src/composables/usePopulate";
 import { readInput, writeInput } from "../src/form-store";
@@ -72,6 +72,80 @@ describe("usePopulate", () => {
 
     expect(readInput(form, ["firstName"])).toBe(""); // back to its initial value
     expect(readInput(form, ["lastName"])).toBeUndefined();
+  });
+
+  it("restores what the USER had typed before populate overwrote it", async () => {
+    const { form } = withForm(definition, form => usePopulate(form, definition, resolveProfile));
+
+    writeInput(form, ["firstName"], "Handwritten");
+    writeInput(form, ["profile"], "alice");
+    await settle();
+    expect(readInput(form, ["firstName"])).toBe("Alice");
+
+    writeInput(form, ["profile"], undefined);
+    await settle();
+
+    expect(readInput(form, ["firstName"])).toBe("Handwritten");
+  });
+
+  it("keeps the FIRST snapshot across repeated populates, then restores it", async () => {
+    const { form } = withForm(definition, form => usePopulate(form, definition, resolveProfile));
+
+    writeInput(form, ["firstName"], "Original");
+    writeInput(form, ["profile"], "alice");
+    await settle();
+    writeInput(form, ["profile"], "bob");
+    await settle();
+    expect(readInput(form, ["firstName"])).toBe("Bob");
+
+    writeInput(form, ["profile"], undefined);
+    await settle();
+
+    expect(readInput(form, ["firstName"])).toBe("Original");
+  });
+
+  it("writes dotted entry names into object leaves and reverts them", async () => {
+    const nestedDef: FormDefinition = {
+      id: "populate-nested",
+      fields: [
+        { name: "company", kind: "enum", required: false, options: [{ label: "ACME", value: "acme" }] },
+        {
+          name: "address", kind: "object", fields: [
+            { name: "city", kind: "string", required: false },
+          ],
+        },
+      ],
+      affects: [{ effect: "populate", trigger: ["company"], source: "hq" }],
+    };
+    const resolveHq: PopulateResolver = () => ({ "address.city": "Springfield" });
+
+    const { form } = withForm(nestedDef, form => usePopulate(form, nestedDef, resolveHq));
+
+    writeInput(form, ["company"], "acme");
+    await settle();
+    expect(readInput(form, ["address", "city"])).toBe("Springfield");
+
+    writeInput(form, ["company"], undefined);
+    await settle();
+    expect(readInput(form, ["address", "city"])).toBeUndefined();
+  });
+
+  it("skips and warns on entries naming unknown fields (no allow list to catch them)", async () => {
+    const noAllowDef: FormDefinition = {
+      ...definition,
+      id: "populate-no-allow",
+      affects: [{ effect: "populate", trigger: ["profile"], source: "profileLookup" }],
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rogue: PopulateResolver = () => ({ firstName: "Ok", ghost: "polluted" });
+    const { form } = withForm(noAllowDef, form => usePopulate(form, noAllowDef, rogue));
+
+    writeInput(form, ["profile"], "alice");
+    await settle();
+
+    expect(readInput(form, ["firstName"])).toBe("Ok");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unknown field "ghost"'));
+    warn.mockRestore();
   });
 
   it("reports isPopulating while a lookup is in flight", async () => {

@@ -13,8 +13,9 @@ import type { Condition, PathKey } from "./condition";
  *
  * `populate` is an event-driven side effect: when the trigger takes a
  * non-empty value the host's `PopulateResolver` runs and its entries are
- * written into the form; emptying the trigger reverts everything the rule
- * wrote and discards any in-flight lookup.
+ * written into the form; emptying the trigger restores the values the rule
+ * overwrote — a user's earlier input included — and discards any in-flight
+ * lookup.
  */
 export type Affect =
   | {
@@ -52,7 +53,7 @@ export interface ConditionalRequiredField {
 
 /** One field write returned by a populate lookup. */
 export interface PopulateEntry {
-  /** Name of the (top-level) field to write. */
+  /** Name of the field to write — dotted to reach an object leaf (`"address.city"`). */
   name: string;
   value: unknown;
 }
@@ -66,8 +67,9 @@ export type PopulateResult = PopulateEntry[] | Record<string, unknown> | Populat
 /**
  * Host-implemented resolver for `populate` affects. Called with the trigger's
  * new non-empty value; the returned entries are written into the form,
- * filtered by the rule's `allow` list. Never called for an emptied trigger —
- * that reverts the previous writes instead. Stale results are discarded, and
+ * filtered by the rule's `allow` list (entries naming unknown fields are
+ * skipped with a warning). Never called for an emptied trigger — that
+ * restores the overwritten values instead. Stale results are discarded, and
  * the whole form blocks (`inert`) while a lookup is pending, since populate
  * writes across many fields at once.
  */
