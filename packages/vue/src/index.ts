@@ -1,3 +1,4 @@
+export { default as DynamicForm } from "./components/DynamicForm.vue";
 export { default as DynamicLayout } from "./components/DynamicLayout.vue";
 export { default as DynamicSection } from "./components/DynamicSection.vue";
 export { default as DynamicField } from "./components/DynamicField.vue";
