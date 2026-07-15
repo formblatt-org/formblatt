@@ -1,6 +1,6 @@
 import { computed, watch } from "vue";
 import { compileAffects, evaluate, fromPathKey, resolveFieldByPath, toPathKey } from "@formblatt/core";
-import type { FormDefinition, PathKey } from "@formblatt/core";
+import type { FormDefinition, PathKey, VisibilityRule } from "@formblatt/core";
 import { clearInput, createReader, type DynamicFormStore } from "../form-store";
 
 /**
@@ -13,21 +13,29 @@ export function useAffects(form: DynamicFormStore, definition: FormDefinition) {
   const rules = compileAffects(definition.affects);
   const read = createReader(form);
 
+  /** Whether a rule's own conditions allow the field to show; no rule allows. */
+  const ruleAllows = (rule: VisibilityRule | undefined): boolean =>
+    !rule || rule.conditions.every(condition => evaluate(condition, read));
+
   /**
-   * Rules on one field AND together. A field with no rules falls back to its
-   * static `hidden` flag — so an affect targeting a hidden field reveals it.
+   * Rules on one field AND together. A statically `hidden` field shows only
+   * while a `show` affect targets it and its rule holds — `hide` affects never
+   * reveal one, they just add reasons to hide.
    */
   const isVisible = (path: readonly PathKey[]): boolean => {
     const rule = rules.get(toPathKey(path));
-    if (!rule) return !resolveFieldByPath(definition, path)?.hidden;
-    return rule.conditions.every(condition => evaluate(condition, read));
+    if (resolveFieldByPath(definition, path)?.hidden && !rule?.revealsHidden) return false;
+    return ruleAllows(rule);
   };
 
   const clearableWhileHidden = [...rules]
     .filter(([, rule]) => rule.clearWhenHidden)
     .map(([key]) => fromPathKey(key));
 
-  const pathsToClear = computed(() => clearableWhileHidden.filter(path => !isVisible(path)));
+  // clearing follows the affect's own condition, not static `hidden` — a
+  // permanently hidden target keeps its ride-along value until the rule triggers
+  const pathsToClear = computed(() =>
+    clearableWhileHidden.filter(path => !ruleAllows(rules.get(toPathKey(path)))));
 
   watch(
     pathsToClear,

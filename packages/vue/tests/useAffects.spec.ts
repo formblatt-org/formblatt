@@ -12,6 +12,7 @@ const definition: FormDefinition = {
     { name: "note", kind: "string", required: false, initial: "kept" },
     { name: "internalId", kind: "string", required: false, hidden: true },
     { name: "auditRef", kind: "string", required: false, hidden: true },
+    { name: "secretCity", kind: "string", required: false, hidden: true, initial: "kept-secret" },
   ],
   affects: [
     {
@@ -22,7 +23,7 @@ const definition: FormDefinition = {
     {
       effect: "hideAndClear",
       when: { path: ["sameAsShipping"], op: "truthy" },
-      targets: [["billingCity"]],
+      targets: [["billingCity"], ["secretCity"]],
     },
     {
       effect: "hide",
@@ -61,6 +62,27 @@ describe("useAffects", () => {
     await settle();
 
     expect(result.isVisible(["internalId"])).toBe(true);
+  });
+
+  it("never reveals a hidden field through a hide affect", async () => {
+    const { form, result } = withForm(definition, form => useAffects(form, definition));
+    expect(result.isVisible(["secretCity"])).toBe(false);
+
+    writeInput(form, ["sameAsShipping"], true);
+    await settle();
+
+    expect(result.isVisible(["secretCity"])).toBe(false);
+  });
+
+  it("clears a hidden hideAndClear target only when its rule triggers, not for being hidden", async () => {
+    const { form } = withForm(definition, form => useAffects(form, definition));
+    await settle();
+    expect(readInput(form, ["secretCity"])).toBe("kept-secret");
+
+    writeInput(form, ["sameAsShipping"], true);
+    await settle();
+
+    expect(readInput(form, ["secretCity"])).toBeUndefined();
   });
 
   it("clears a hideAndClear target's value when it hides", async () => {

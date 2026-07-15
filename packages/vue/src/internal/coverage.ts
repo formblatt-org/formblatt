@@ -53,13 +53,17 @@ function warnDuplicatePlacements(placements: Placements): void {
 
 /**
  * Object fields have no renderer, computed fields are always optional, and a
- * `hidden` field no affect can reveal never renders (nor enforces required),
- * so none counts as missing. Array fields do — `DynamicFieldArray` registers
- * them — and so does a hidden field an affect CAN reveal: once shown it is
- * re-required, so it still needs a place in the DOM.
+ * `hidden` field no `show` affect can reveal never renders (nor enforces
+ * required), so none counts as missing. Array fields do — `DynamicFieldArray`
+ * registers them — and so does a hidden field a `show` affect CAN reveal:
+ * once shown it is re-required, so it still needs a place in the DOM.
  */
 function warnUnplacedFields(definition: FormDefinition, placements: Placements): void {
-  const revealable = new Set(compileAffects(definition.affects).keys());
+  const revealable = new Set(
+    [...compileAffects(definition.affects)]
+      .filter(([, rule]) => rule.revealsHidden)
+      .map(([key]) => key),
+  );
   const neverRenders = (field: FieldDefinition) =>
     !!field.hidden && !revealable.has(toPathKey([field.name]));
 
