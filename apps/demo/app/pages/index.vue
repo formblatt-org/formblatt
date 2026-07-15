@@ -23,17 +23,21 @@ const accountDefinition: FormDefinition = {
       name: "lastName", kind: "string", control: "text", label: "Last Name", required: true
     },
     {
-      name: "fullName", kind: "string", control: "text", label: "Full Name", required: false,
+      name: "fullName", kind: "string", control: "text", label: "Full Name", required: false, disabled: true,
       computed: { expression: { op: "concat", sep: " ", args: [{ ref: ["firstName"] }, { ref: ["lastName"] }] }}
     },
     {
       name: "email", kind: "string", control: "email", label: "Email", initial: "user@example.com", validations: [{ "type": "email" }],
     },
     {
-      name: "password", kind: "string", control: "password", label: "Password", validations: [{ "type": "minLength", "value": 8 }]
+      name: "password",
+      kind: "string",
+      control: "password",
+      label: "Password",
+      validations: [{ "type": "minLength", "value": 8 }],
     },
     {
-      name: "confirmPassword", kind: "string", control: "password", label: "Confirm Password", validations: [{ "type": "minLength", "value": 8 }]
+      name: "confirmPassword", kind: "string", control: "password", label: "Confirm Password", hidden: true, validations: [{ "type": "minLength", "value": 8 }]
     },
     {
       name: "country", kind: "enum", control: "select", label: "Country", required: false, optionsSource: { source: "countries" }
@@ -58,6 +62,7 @@ const accountDefinition: FormDefinition = {
     }
   ],
   affects: [
+    { when: { path: ["password"], op: "notEmpty" }, effect: "show", targets: [["confirmPassword"]] },
     { when: { path: ["email"], op: "eq", value: "pera.peric@email.com" }, effect: "hideAndClear", targets: [["password"], ["confirmPassword"]] },
     { effect: "populate", trigger: ["profile"], source: "profileLookup", allow: ["firstName", "lastName", "password", "confirmPassword", "country", "state", "birthDate"] },
   ],
