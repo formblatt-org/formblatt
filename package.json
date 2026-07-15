@@ -2,6 +2,13 @@
   "name": "formblatt",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "pnpm --filter formblatt-demo dev",
+    "build": "pnpm --filter formblatt-demo build",
+    "test": "pnpm -r --filter \"@formblatt/*\" run test",
+    "build:packages": "pnpm -r --filter \"@formblatt/*\" run build",
+    "typecheck": "pnpm -r run typecheck"
+  },
   "devDependencies": {
     "typescript": "^7.0.2"
   }
