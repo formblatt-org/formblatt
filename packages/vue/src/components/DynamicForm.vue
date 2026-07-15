@@ -18,6 +18,7 @@ import type {
   ComputedResolver,
   FieldDefinition,
   FormDefinition,
+  MessageCatalog,
   OptionsResolver,
   PopulateResolver,
   ValidationFactory,
@@ -68,6 +69,12 @@ const props = defineProps<{
   /** Overrides for the built-in UI strings — the i18n hook. Merged over English defaults. */
   text?: Partial<UiText>;
   /**
+   * Message templates for validation errors, keyed by rule type (plus
+   * `required` / `isoDate` / `picklist`), interpolating `{field}` and
+   * `{value}`. Compiled into the schema at mount — remount for a locale change.
+   */
+  messages?: MessageCatalog;
+  /**
    * `@submit` — called with the parsed values once the schema passed. Declared
    * as a prop (not an emit) so an async handler can be awaited: the form stays
    * `isSubmitting` until it settles, and server-side errors map back through
@@ -89,6 +96,7 @@ const form = useForm({
   // the schema is built once, so a locale change to `text.requiredMessage` needs a :key remount
   schema: buildFormSchema(definition, {
     requiredMessage: text.value.requiredMessage,
+    messages: props.messages,
     rules: props.rules,
     validationResolver: props.resolveValidation,
   }),

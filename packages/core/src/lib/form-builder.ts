@@ -32,13 +32,27 @@ export type FormSchema = GenericSchema<FormData> | GenericSchemaAsync<FormData>;
  */
 type ConditionalPaths = ReadonlySet<string>;
 
+/**
+ * Message templates keyed by validation rule type, plus the specials
+ * `required` (fields without a `requiredMessage`), `isoDate` (malformed
+ * dates) and `picklist` (a static enum value outside its options) — the i18n
+ * layer for validation. Templates may interpolate `{field}` (the label, or
+ * the name without one) and `{value}` (the rule's operand):
+ * `{ minLength: "{field} needs at least {value} characters" }`.
+ * A rule's explicit `message` always wins over the catalog.
+ */
+export type MessageCatalog = Readonly<Record<string, string>>;
+
 /** Host-tunable knobs of {@link buildFormSchema}. */
 export interface BuildFormSchemaOptions {
   /**
    * Fallback message for required fields that declare no `requiredMessage` —
-   * the i18n hook. Defaults to English ("This field is required").
+   * the plain-string knob. Defaults to English ("This field is required").
+   * A catalog `required` template takes precedence (it can interpolate).
    */
   requiredMessage?: string;
+  /** Message templates for validation errors. See {@link MessageCatalog}. */
+  messages?: MessageCatalog;
   /**
    * Host-defined validation rules, addressable from any field kind by their
    * key. Looked up AFTER the built-ins, so they cannot shadow one. Remember to
@@ -57,6 +71,7 @@ export interface BuildFormSchemaOptions {
 interface BuildContext {
   conditionalPaths: ConditionalPaths;
   requiredMessage: string;
+  messages: MessageCatalog;
   kit: SchemaKit;
   customRules: Record<string, ValidationFactory>;
   validationResolver?: ValidationResolver;
@@ -167,6 +182,7 @@ export function buildFormSchema(
   const context: BuildContext = {
     conditionalPaths: collectConditionalPaths(definition),
     requiredMessage: options?.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE,
+    messages: options?.messages ?? {},
     kit: hasRemoteRules(definition.fields) ? ASYNC_KIT : SYNC_KIT,
     customRules: options?.rules ?? {},
     validationResolver: options?.validationResolver,
@@ -267,7 +283,7 @@ function buildStringSchema(field: ValueField, required: boolean, context: BuildC
     ? [{ type: "nonEmpty", message: requiredMessageOf(field, context) }, ...(field.validations ?? [])]
     : field.validations;
   const base = required ? v.string(requiredMessageOf(field, context)) : v.string();
-  return withValidations(base, validations, STRING_VALIDATIONS, context);
+  return withValidations(base, field, validations, STRING_VALIDATIONS, context);
 }
 
 /**
@@ -277,7 +293,7 @@ function buildStringSchema(field: ValueField, required: boolean, context: BuildC
  */
 function buildNumberSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const base = required ? v.number(requiredMessageOf(field, context)) : v.number();
-  return withValidations(base, field.validations, NUMBER_VALIDATIONS, context);
+  return withValidations(base, field, field.validations, NUMBER_VALIDATIONS, context);
 }
 
 /**
@@ -293,17 +309,17 @@ function buildEnumSchema(field: ValueField, required: boolean, context: BuildCon
   if (field.multiple) {
     const item = field.optionsSource
       ? v.string()
-      : v.picklist((field.options ?? []).map(option => option.value));
+      : v.picklist((field.options ?? []).map(option => option.value), catalogText(context, "picklist", field));
     const base = v.array(item, message);
     const withMin = message ? context.kit.pipe(base, v.minLength(1, message)) : base;
-    return withValidations(withMin, field.validations, {}, context);
+    return withValidations(withMin, field, field.validations, {}, context);
   }
 
   const base = field.optionsSource
     ? (message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string())
-    : v.picklist((field.options ?? []).map(option => option.value), message);
+    : v.picklist((field.options ?? []).map(option => option.value), message ?? catalogText(context, "picklist", field));
   // no enum-specific registry, but custom and remote rules still apply
-  return withValidations(base, field.validations, {}, context);
+  return withValidations(base, field, field.validations, {}, context);
 }
 
 /**
@@ -313,7 +329,7 @@ function buildEnumSchema(field: ValueField, required: boolean, context: BuildCon
  */
 function buildBooleanSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const base = required ? v.boolean(requiredMessageOf(field, context)) : v.boolean();
-  return withValidations(base, field.validations, BOOLEAN_VALIDATIONS, context);
+  return withValidations(base, field, field.validations, BOOLEAN_VALIDATIONS, context);
 }
 
 /**
@@ -322,10 +338,11 @@ function buildBooleanSchema(field: ValueField, required: boolean, context: Build
  * value keeps `isoDate`'s own error.
  */
 function buildDateSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
+  const invalidDate = catalogText(context, "isoDate", field);
   const base = required
-    ? v.pipe(v.string(requiredMessageOf(field, context)), v.isoDate())
-    : v.pipe(v.string(), v.isoDate());
-  return withValidations(base, field.validations, DATE_VALIDATIONS, context);
+    ? v.pipe(v.string(requiredMessageOf(field, context)), v.isoDate(invalidDate))
+    : v.pipe(v.string(), v.isoDate(invalidDate));
+  return withValidations(base, field, field.validations, DATE_VALIDATIONS, context);
 }
 
 /** Builds an object's entries, then applies its cross-field {@link ObjectCheck}s. */
@@ -384,12 +401,13 @@ function withRequiredWhenVisible(
  */
 function withValidations(
   base: GenericSchema,
+  field: ValueField,
   rules: readonly ValidationRule[] = [],
   registry: Record<string, ValidationFactory>,
   context: BuildContext,
 ): GenericSchema {
   const actions = rules
-    .map(rule => toValidationAction(rule, registry, context))
+    .map(rule => toValidationAction(rule, field, registry, context))
     .filter((action): action is ValidationAction => !!action);
 
   return actions.length ? context.kit.pipe(base, ...actions) : base;
@@ -397,13 +415,36 @@ function withValidations(
 
 function toValidationAction(
   rule: ValidationRule,
+  field: ValueField,
   registry: Record<string, ValidationFactory>,
   context: BuildContext,
 ): ValidationAction | undefined {
-  if (rule.type === "remote") return toRemoteAction(rule, context);
+  // an explicit message wins; otherwise the catalog template for this rule type
+  const effective = rule.message !== undefined
+    ? rule
+    : { ...rule, message: catalogText(context, rule.type, field, rule.value) };
 
-  const factory = registry[rule.type] ?? context.customRules[rule.type];
-  return factory?.(rule);
+  if (effective.type === "remote") return toRemoteAction(effective, context);
+
+  const factory = registry[effective.type] ?? context.customRules[effective.type];
+  return factory?.(effective);
+}
+
+/** The interpolated catalog template for `key`, or `undefined` when the catalog has none. */
+function catalogText(
+  context: BuildContext,
+  key: string,
+  field: ValueField,
+  value?: unknown,
+): string | undefined {
+  const template = context.messages[key];
+  return template && interpolate(template, { field: field.label ?? field.name, value });
+}
+
+/** Fills `{field}` / `{value}` placeholders; unknown placeholders stay verbatim. */
+function interpolate(template: string, params: Record<string, unknown>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
+    params[key] === undefined ? match : String(params[key]));
 }
 
 /**
@@ -433,8 +474,8 @@ function toRemoteAction(rule: ValidationRule, context: BuildContext): Validation
   }) as unknown as ValidationAction;
 }
 
-const requiredMessageOf = (field: FieldDefinition, context: BuildContext) =>
-  field.requiredMessage ?? context.requiredMessage;
+const requiredMessageOf = (field: ValueField, context: BuildContext) =>
+  field.requiredMessage ?? catalogText(context, "required", field) ?? context.requiredMessage;
 
 /**
  * Collects the `initial` values declared across a definition, optionally

@@ -335,6 +335,49 @@ describe("hidden and disabled fields never enforce their required check", () => 
   });
 });
 
+describe("message catalog", () => {
+  const def: FormDefinition = {
+    id: "catalog",
+    fields: [
+      { name: "name", kind: "string", label: "Name", validations: [{ type: "minLength", value: 3 }] },
+      { name: "start", kind: "date", label: "Start", required: false },
+      { name: "color", kind: "enum", label: "Farbe", required: false, options: [{ label: "Rot", value: "rot" }] },
+      { name: "custom", kind: "string", required: false, requiredMessage: "own message", validations: [{ type: "minLength", value: 5, message: "explicit wins" }] },
+    ],
+  };
+  const schema = buildFormSchema(def, {
+    messages: {
+      required: "{field} fehlt",
+      minLength: "{field} braucht mindestens {value} Zeichen",
+      isoDate: "{field} ist kein Datum",
+      picklist: "{field} kennt diesen Wert nicht",
+    },
+  });
+  const base = { name: "Ada" };
+
+  it("interpolates {field} and {value} into rule messages", () => {
+    expect(run(schema, { name: "ab" })).toEqual(["Name braucht mindestens 3 Zeichen @ name"]);
+  });
+
+  it("uses the catalog's required template for fields without their own message", () => {
+    // "" also fails minLength — both messages come from the catalog
+    expect(run(schema, { name: "" })).toEqual([
+      "Name fehlt @ name",
+      "Name braucht mindestens 3 Zeichen @ name",
+    ]);
+    expect(run(schema, { name: undefined })).toEqual(["Name fehlt @ name"]);
+  });
+
+  it("covers the special isoDate and picklist cases", () => {
+    expect(run(schema, { ...base, start: "not-a-date" })).toEqual(["Start ist kein Datum @ start"]);
+    expect(run(schema, { ...base, color: "blau" })).toEqual(["Farbe kennt diesen Wert nicht @ color"]);
+  });
+
+  it("lets explicit field/rule messages win over the catalog", () => {
+    expect(run(schema, { ...base, custom: "abcd" })).toEqual(["explicit wins @ custom"]);
+  });
+});
+
 describe("multiple enums", () => {
   const def: FormDefinition = {
     id: "multi-enum",
