@@ -167,6 +167,51 @@ describe("field kind semantics", () => {
   });
 });
 
+describe("boolean and date required/validation semantics", () => {
+  const def: FormDefinition = {
+    id: "bool-date-fixture",
+    fields: [
+      { name: "terms", kind: "boolean", requiredMessage: "Please accept the terms", validations: [{ type: "isTrue", message: "You must accept the terms" }] },
+      { name: "newsletter", kind: "boolean", required: false },
+      { name: "startDate", kind: "date", requiredMessage: "Start date is required", validations: [
+        { type: "minValue", value: "2020-01-01", message: "No earlier than 2020" },
+        { type: "maxValue", value: "2030-12-31", message: "No later than 2030" },
+      ] },
+    ],
+  };
+  const schema = buildFormSchema(def);
+  const base = { terms: true, startDate: "2025-06-15" };
+
+  it("reports a missing required boolean with its required message, not a type error", () => {
+    expect(run(schema, { ...base, terms: undefined })).toEqual(["Please accept the terms @ terms"]);
+  });
+
+  it("rejects an unchecked isTrue boolean — false is present but not accepted", () => {
+    expect(run(schema, { ...base, terms: false })).toEqual(["You must accept the terms @ terms"]);
+  });
+
+  it("lets an optional boolean stay undefined or false", () => {
+    expect(run(schema, base)).toBe("valid");
+    expect(run(schema, { ...base, newsletter: false })).toBe("valid");
+  });
+
+  it("reports a missing required date with its required message, not a type error", () => {
+    expect(run(schema, { ...base, startDate: undefined })).toEqual(["Start date is required @ startDate"]);
+  });
+
+  it("keeps isoDate's own error for a present but malformed date", () => {
+    expect(run(schema, { ...base, startDate: "15.06.2025" })).not.toBe("valid");
+    expect(run(schema, { ...base, startDate: "15.06.2025" })).not.toEqual(["Start date is required @ startDate"]);
+  });
+
+  it("enforces min/max date bounds in date order", () => {
+    expect(run(schema, { ...base, startDate: "2019-12-31" })).toEqual(["No earlier than 2020 @ startDate"]);
+    expect(run(schema, { ...base, startDate: "2031-01-01" })).toEqual(["No later than 2030 @ startDate"]);
+    expect(run(schema, { ...base, startDate: "2020-01-01" })).toBe("valid");
+    expect(run(schema, { ...base, startDate: "2030-12-31" })).toBe("valid");
+  });
+});
+
 describe("requiredMessage overrides", () => {
   const def: FormDefinition = {
     id: "required-message-fixture",

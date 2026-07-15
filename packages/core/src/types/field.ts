@@ -4,9 +4,13 @@ import type { Computed } from "./computed";
 /**
  * One validation applied to a field's value. Built-in types per kind —
  * strings: `email`, `url`, `uuid`, `nonEmpty`, `minLength`, `maxLength`,
- * `regex`; numbers: `minValue`, `maxValue`, `integer`. Unknown types are
- * silently ignored by the builder, so a typo weakens validation without an
- * error — the main reason to run `validateDefinition` on served definitions.
+ * `regex`; numbers: `minValue`, `maxValue`, `integer`; booleans: `isTrue`
+ * (must be checked — `required` only demands presence, and `false` is
+ * present); dates: `minValue`, `maxValue` (ISO strings, compared in date
+ * order). Enums validate through their options and support no extra rules.
+ * The builder ignores unknown types, so a typo weakens validation without an
+ * error — run `validateDefinition` on served definitions; its lint rejects
+ * rule types the kind does not implement.
  */
 export interface ValidationRule {
   /** Registry key of the rule, e.g. `"minLength"`. */

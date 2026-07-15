@@ -47,6 +47,32 @@ const NUMBER_VALIDATIONS: Record<string, ValidationFactory> = {
   integer: rule => v.integer(rule.message),
 };
 
+const BOOLEAN_VALIDATIONS: Record<string, ValidationFactory> = {
+  // `required` on a boolean only demands presence — false is a value. This is
+  // the "must accept the terms" rule: the box has to actually be checked.
+  isTrue: rule => v.check(value => value === true, rule.message),
+};
+
+// ISO date strings compare lexicographically in date order, so valibot's
+// generic min/max work on them directly.
+const DATE_VALIDATIONS: Record<string, ValidationFactory> = {
+  minValue: rule => v.minValue(rule.value as string, rule.message),
+  maxValue: rule => v.maxValue(rule.value as string, rule.message),
+};
+
+/**
+ * The validation rule types the builder implements per field kind — the
+ * definition lint checks incoming rules against this. Enums validate through
+ * their options / `nonEmpty` and support no extra rules.
+ */
+export const KNOWN_VALIDATION_TYPES: Record<ValueField["kind"], readonly string[]> = {
+  string: Object.keys(STRING_VALIDATIONS),
+  number: Object.keys(NUMBER_VALIDATIONS),
+  boolean: Object.keys(BOOLEAN_VALIDATIONS),
+  date: Object.keys(DATE_VALIDATIONS),
+  enum: [],
+};
+
 /**
  * Valibot types `pipe` as a tuple of statically known actions; ours are
  * assembled at runtime from the definition. The cast lives here, once.
@@ -142,8 +168,8 @@ function buildKindSchema(
     case "string": return buildStringSchema(field, required);
     case "number": return buildNumberSchema(field, required);
     case "enum": return buildEnumSchema(field, required);
-    case "boolean": return v.boolean();
-    case "date": return v.pipe(v.string(), v.isoDate());
+    case "boolean": return buildBooleanSchema(field, required);
+    case "date": return buildDateSchema(field, required);
     case "object": return buildObjectSchema(field, path, conditionalPaths);
     // every row shares one item schema, so the item's path carries no index
     case "array": return v.array(buildField(field.item, path, conditionalPaths));
@@ -181,6 +207,28 @@ function buildEnumSchema(field: ValueField, required: boolean): GenericSchema {
     return message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string();
   }
   return v.picklist((field.options ?? []).map(option => option.value), message);
+}
+
+/**
+ * A required boolean's *type* issue is the missing-value case, so it carries
+ * the required message. `false` is a value — "must be checked" is the
+ * `isTrue` validation, not `required`.
+ */
+function buildBooleanSchema(field: ValueField, required: boolean): GenericSchema {
+  const base = required ? v.boolean(requiredMessageOf(field)) : v.boolean();
+  return withValidations(base, field.validations, BOOLEAN_VALIDATIONS);
+}
+
+/**
+ * A date is an ISO string, so a missing required one fails the *string* check
+ * — which therefore carries the required message. A present but malformed
+ * value keeps `isoDate`'s own error.
+ */
+function buildDateSchema(field: ValueField, required: boolean): GenericSchema {
+  const base = required
+    ? v.pipe(v.string(requiredMessageOf(field)), v.isoDate())
+    : v.pipe(v.string(), v.isoDate());
+  return withValidations(base, field.validations, DATE_VALIDATIONS);
 }
 
 /** Builds an object's entries, then applies its cross-field {@link ObjectCheck}s. */
