@@ -33,6 +33,55 @@ export function isValueField(field: FieldDefinition): field is ValueField {
   return field.kind !== "object" && field.kind !== "array";
 }
 
+/** One leaf value field with its data path — what {@link walkValueFields} yields. */
+export interface ValueFieldEntry {
+  field: ValueField;
+  /** Path from the walk root, one segment per object level. */
+  path: string[];
+}
+
+/**
+ * Every leaf value field reachable through object nesting, depth-first in
+ * declaration order. Arrays are boundaries — their rows are a separate,
+ * per-row concern (`DynamicFieldArray`, row-relative computed) and are never
+ * descended into.
+ */
+export function walkValueFields(
+  fields: readonly FieldDefinition[],
+  base: readonly string[] = [],
+): ValueFieldEntry[] {
+  const entries: ValueFieldEntry[] = [];
+
+  for (const field of fields) {
+    const path = [...base, field.name];
+    if (field.kind === "object") entries.push(...walkValueFields(field.fields, path));
+    else if (field.kind !== "array") entries.push({ field, path });
+  }
+
+  return entries;
+}
+
+/**
+ * Resolves a name path through OBJECT nesting only — `["address", "city"]` —
+ * as layout references and coverage tracking address fields. Arrays are
+ * boundaries: anything below an array resolves to `undefined`.
+ */
+export function resolveFieldByNamePath(
+  fields: readonly FieldDefinition[],
+  segments: readonly string[],
+): FieldDefinition | undefined {
+  let siblings = fields;
+  let field: FieldDefinition | undefined;
+
+  for (const segment of segments) {
+    field = siblings.find(candidate => candidate.name === segment);
+    if (!field) return undefined;
+    siblings = field.kind === "object" ? field.fields : [];
+  }
+
+  return field;
+}
+
 /** A {@link ValueField} whose value is derived rather than typed by the user. */
 export type ComputedField = ValueField & { computed: NonNullable<ValueField["computed"]> };
 

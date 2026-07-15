@@ -59,7 +59,7 @@ const fieldsByName = computed<Record<string, FieldDefinition>>(() =>
   Object.fromEntries(definition.fields.map(field => [field.name, field])));
 
 const resolvedLayout = computed(() =>
-  resolveNodes(normalizeLayout(definition), fieldsByName.value));
+  resolveNodes(normalizeLayout(definition), definition.fields));
 
 const { isVisible } = useAffects(form, definition);
 const { isPopulating } = usePopulate(form, definition, props.resolvePopulate);
