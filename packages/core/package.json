@@ -1,6 +1,43 @@
 {
-  "name": "@formblatt/vue",
-  "version": "0.0.0",
-  "description": "Vue bindings for Formblatt",
-  "type": "module"
+  "name": "@formblatt/core",
+  "version": "0.1.0",
+  "description": "Framework-agnostic core of formblatt: JSON form definitions to Valibot schemas, condition/expression evaluation, layout resolution, migrations.",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs",
+        "default": "./dist/index.mjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "unbuild",
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "valibot": "^1.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^5.9.3",
+    "unbuild": "^3.6.1",
+    "valibot": "^1.4.2",
+    "vitest": "^4.1.10"
+  }
 }
