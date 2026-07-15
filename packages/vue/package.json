@@ -2,7 +2,29 @@
   "name": "@formblatt/vue",
   "version": "0.1.0",
   "description": "Vue bindings for formblatt: composables and headless components over @formisch/vue.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/formblatt-org/formblatt.git",
+    "directory": "packages/vue"
+  },
+  "homepage": "https://github.com/formblatt-org/formblatt#readme",
+  "bugs": "https://github.com/formblatt-org/formblatt/issues",
+  "keywords": [
+    "form",
+    "forms",
+    "vue",
+    "schema",
+    "json",
+    "form-builder",
+    "validation",
+    "formisch",
+    "valibot"
+  ],
   "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
   "files": [
     "dist"
   ],
