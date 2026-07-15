@@ -13,3 +13,4 @@ export * from "./composables/useComputed";
 
 export * from "./form-context";
 export * from "./form-store";
+export * from "./typed-form";
