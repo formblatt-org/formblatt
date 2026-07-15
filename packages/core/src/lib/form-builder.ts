@@ -318,12 +318,41 @@ const requiredMessageOf = (field: FieldDefinition, context: BuildContext) =>
   field.requiredMessage ?? context.requiredMessage;
 
 /**
- * Collects the `initial` values declared across a definition. Fields without
- * one are absent (not `undefined`), and an object contributes nothing unless
- * a descendant has a value.
+ * Collects the `initial` values declared across a definition, optionally
+ * hydrated with host data — an edit workflow's saved record. `initialData`
+ * wins per key: plain objects merge recursively, arrays and scalars replace
+ * wholesale, and `undefined` entries are ignored (JSON never carries them).
+ * Fields without a value are absent (not `undefined`), and an object
+ * contributes nothing unless a descendant has a value.
  */
-export function buildInitialInput(definition: FormDefinition): Record<string, unknown> {
-  return collectInitialValues(definition.fields);
+export function buildInitialInput(
+  definition: FormDefinition,
+  initialData?: Record<string, unknown>,
+): Record<string, unknown> {
+  const declared = collectInitialValues(definition.fields);
+  return initialData ? mergeInitial(declared, initialData) : declared;
+}
+
+/** `override` wins; plain objects merge recursively, everything else replaces. */
+function mergeInitial(
+  base: Record<string, unknown>,
+  override: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...base };
+
+  for (const [key, value] of Object.entries(override)) {
+    if (value === undefined) continue;
+    const current = merged[key];
+    merged[key] = isPlainObject(current) && isPlainObject(value)
+      ? mergeInitial(current, value)
+      : value;
+  }
+
+  return merged;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function collectInitialValues(fields: readonly FieldDefinition[]): Record<string, unknown> {

@@ -26,6 +26,28 @@ describe("DynamicForm rendering", () => {
     expect(labels).toEqual(["First name", "Age", "City"]);
   });
 
+  it("hydrates controls from initialData, merged over definition initials", async () => {
+    const withInitial: FormDefinition = {
+      ...simple,
+      id: "form-hydrated",
+      fields: [
+        { name: "firstName", kind: "string", label: "First name", required: false, initial: "Declared" },
+        ...simple.fields.slice(1),
+      ],
+    };
+    const wrapper = mount(DynamicForm, {
+      props: {
+        definition: withInitial,
+        initialData: { firstName: "Saved", address: { city: "Berlin" } },
+      },
+    });
+    await settle();
+
+    const inputs = wrapper.findAll("input");
+    expect((inputs[0]!.element as HTMLInputElement).value).toBe("Saved");
+    expect((inputs[2]!.element as HTMLInputElement).value).toBe("Berlin");
+  });
+
   it("applies text overrides to the built-in strings", () => {
     const withSelect: FormDefinition = {
       id: "form-text",

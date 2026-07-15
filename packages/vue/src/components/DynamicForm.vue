@@ -31,6 +31,12 @@ import DynamicLayout from "./DynamicLayout.vue";
 
 const props = defineProps<{
   definition: FormDefinition;
+  /**
+   * Host data to hydrate the form with (an edit workflow's saved record),
+   * merged over the definition's `initial` values. Read once at mount —
+   * remount with `:key` to re-hydrate.
+   */
+  initialData?: Record<string, unknown>;
   /** Required only when the definition declares `populate` affects — a warning tells you when it's missing. */
   resolvePopulate?: PopulateResolver;
   /** Required only when the definition declares `optionsSource` fields. */
@@ -56,7 +62,7 @@ const definition = validateDefinition(migrateDefinition(props.definition));
 const form = useForm({
   // the schema is built once, so a locale change to `text.requiredMessage` needs a :key remount
   schema: buildFormSchema(definition, { requiredMessage: text.value.requiredMessage }),
-  initialInput: buildInitialInput(definition),
+  initialInput: buildInitialInput(definition, props.initialData),
   validate: definition.validate,
   revalidate: definition.revalidate,
 })

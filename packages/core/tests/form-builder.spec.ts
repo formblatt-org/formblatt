@@ -335,25 +335,48 @@ describe("hidden and disabled fields never enforce their required check", () => 
 });
 
 describe("buildInitialInput", () => {
+  const def: FormDefinition = {
+    id: "init-fixture",
+    fields: [
+      { name: "email", kind: "string", initial: "user@example.com" },
+      { name: "empty", kind: "string" },
+      {
+        name: "address", kind: "object", fields: [
+          { name: "city", kind: "string", initial: "Berlin" },
+          { name: "zip", kind: "string" },
+        ],
+      },
+      { name: "lines", kind: "array", item: { name: "line", kind: "string" }, initial: ["a"] },
+    ],
+  };
+
   it("collects initial values and omits fields without one", () => {
-    const def: FormDefinition = {
-      id: "init-fixture",
-      fields: [
-        { name: "email", kind: "string", initial: "user@example.com" },
-        { name: "empty", kind: "string" },
-        {
-          name: "address", kind: "object", fields: [
-            { name: "city", kind: "string", initial: "Berlin" },
-            { name: "zip", kind: "string" },
-          ],
-        },
-        { name: "lines", kind: "array", item: { name: "line", kind: "string" }, initial: ["a"] },
-      ],
-    };
     expect(buildInitialInput(def)).toEqual({
       email: "user@example.com",
       address: { city: "Berlin" },
       lines: ["a"],
+    });
+  });
+
+  it("hydrates host data over the declared initials, merging objects per leaf", () => {
+    expect(buildInitialInput(def, {
+      email: "saved@example.com",
+      address: { zip: "10115" }, // city must survive the merge
+    })).toEqual({
+      email: "saved@example.com",
+      address: { city: "Berlin", zip: "10115" },
+      lines: ["a"],
+    });
+  });
+
+  it("replaces arrays wholesale and ignores undefined entries", () => {
+    expect(buildInitialInput(def, {
+      email: undefined, // "not provided", must not erase the declared initial
+      lines: ["x", "y"],
+    })).toEqual({
+      email: "user@example.com",
+      address: { city: "Berlin" },
+      lines: ["x", "y"],
     });
   });
 });
