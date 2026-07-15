@@ -1,5 +1,6 @@
 import {
   getDirtyInput,
+  getErrors,
   getInput,
   insert,
   isDirty,
@@ -67,6 +68,16 @@ export function resetField(form: DynamicFormStore, path: readonly PathKey[]): vo
 /** Re-runs validation — needed after a programmatic write that may have cleared errors. */
 export function revalidate(form: DynamicFormStore): void {
   validate(form);
+}
+
+/** Runs a full validation pass and resolves once its results are in the store. */
+export async function runValidation(form: DynamicFormStore): Promise<void> {
+  await validate(form);
+}
+
+/** The current errors of the field at `path`, or `null` while it has none. */
+export function readFieldErrors(form: DynamicFormStore, path: readonly PathKey[]): string[] | null {
+  return getErrors(form, args(path));
 }
 
 /**

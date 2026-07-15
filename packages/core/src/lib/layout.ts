@@ -9,7 +9,9 @@ type Section = Extract<ResolvedNode, { type: "section" }>;
  * so no field is silently unrendered. No layout → every leaf value field flat
  * in declaration order, object fields flattened into dotted references
  * (`"address.city"`); arrays are skipped — they render only through
- * `DynamicFieldArray`. Orphans render bare, or inside `orphanSection` when set.
+ * `DynamicFieldArray`. Orphans render bare, or inside `orphanSection` when
+ * set; a paged layout gets them inside its LAST page — a top-level node after
+ * pages would never render.
  */
 export function normalizeLayout(definition: FormDefinition): readonly LayoutNode[] {
   if (!definition.layout) return flattenFields(definition.fields);
@@ -19,15 +21,24 @@ export function normalizeLayout(definition: FormDefinition): readonly LayoutNode
   if (!orphans.length) return definition.layout;
 
   const { orphanSection } = definition;
-  if (!orphanSection) return [...definition.layout, ...orphans];
+  const appended: LayoutNode[] = orphanSection
+    ? [{
+        type: "section",
+        id: orphanSection.id ?? "__orphans",
+        title: orphanSection.title,
+        collapsed: orphanSection.collapsed,
+        children: orphans,
+      }]
+    : orphans;
 
-  return [...definition.layout, {
-    type: "section",
-    id: orphanSection.id ?? "__orphans",
-    title: orphanSection.title,
-    collapsed: orphanSection.collapsed,
-    children: orphans,
-  }];
+  const last = definition.layout[definition.layout.length - 1];
+  if (last?.type === "page") {
+    return [
+      ...definition.layout.slice(0, -1),
+      { ...last, children: [...last.children, ...appended] },
+    ];
+  }
+  return [...definition.layout, ...appended];
 }
 
 type FieldNode = Extract<LayoutNode, { type: "field" }>;
@@ -51,7 +62,7 @@ export function resolveNodes(
   const resolved: ResolvedNode[] = [];
 
   for (const node of nodes) {
-    if (node.type === "section") {
+    if (node.type === "section" || node.type === "page") {
       resolved.push({ ...node, children: resolveNodes(node.children, fields) });
       continue;
     }
@@ -86,11 +97,11 @@ export function collectNames(nodes: readonly LayoutNode[], names = new Set<strin
   return names;
 }
 
-/** Finds a section by id anywhere in a resolved tree. */
+/** Finds a section by id anywhere in a resolved tree, pages included. */
 export function findSection(nodes: readonly ResolvedNode[], id: string): Section | undefined {
   for (const node of nodes) {
-    if (node.type !== "section") continue;
-    if (node.id === id) return node;
+    if (node.type === "field") continue;
+    if (node.type === "section" && node.id === id) return node;
 
     const nested = findSection(node.children, id);
     if (nested) return nested;
@@ -104,4 +115,18 @@ export function findSection(nodes: readonly ResolvedNode[], id: string): Section
  */
 export function directFieldNames(nodes: readonly ResolvedNode[]): string[] {
   return nodes.filter(node => node.type === "field").map(node => node.name);
+}
+
+/**
+ * Every field name anywhere below these nodes, sections and pages included —
+ * what a wizard page validates before advancing, and what a paged layout
+ * reports as placed for fields on pages that are not currently mounted.
+ */
+export function collectFieldNames(nodes: readonly ResolvedNode[]): string[] {
+  const names: string[] = [];
+  for (const node of nodes) {
+    if (node.type === "field") names.push(node.name);
+    else names.push(...collectFieldNames(node.children));
+  }
+  return names;
 }

@@ -153,6 +153,13 @@ export const LayoutNodeSchema: v.GenericSchema<LayoutNode> = v.lazy(() =>
       visibleWhen: v.optional(ConditionSchema),
       children: v.array(LayoutNodeSchema),
     }),
+    v.object({
+      type: v.literal("page"),
+      id: v.string(),
+      title: v.optional(v.string()),
+      visibleWhen: v.optional(ConditionSchema),
+      children: v.array(LayoutNodeSchema),
+    }),
   ])
 );
 

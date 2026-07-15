@@ -337,8 +337,39 @@ describe("layout", () => {
       orphanSection: { title: "O", id: "other" },
     };
     const errors = lint(def, "error");
-    expect(errors).toContainEqual(expect.stringContaining('section id "s" is used 2 times'));
-    expect(errors).toContainEqual(expect.stringContaining('section id "other" is used 2 times'));
+    expect(errors).toContainEqual(expect.stringContaining('section/page id "s" is used 2 times'));
+    expect(errors).toContainEqual(expect.stringContaining('section/page id "other" is used 2 times'));
+  });
+
+  it("rejects nested pages and page/non-page mixes at the top level", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [{ name: "a", kind: "string" }, { name: "b", kind: "string" }],
+      layout: [
+        {
+          type: "page", id: "p1", children: [
+            { type: "field", name: "a" },
+            { type: "page", id: "p2", children: [] },
+          ],
+        },
+        { type: "field", name: "b" },
+      ],
+    };
+    const errors = lint(def, "error");
+    expect(errors).toContainEqual(expect.stringContaining("only appear at the top level"));
+    expect(errors).toContainEqual(expect.stringContaining("must consist of pages only"));
+  });
+
+  it("accepts a clean paged layout", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [{ name: "a", kind: "string" }, { name: "b", kind: "string" }],
+      layout: [
+        { type: "page", id: "p1", title: "One", children: [{ type: "field", name: "a" }] },
+        { type: "page", id: "p2", title: "Two", children: [{ type: "field", name: "b" }] },
+      ],
+    };
+    expect(lint(def)).toEqual([]);
   });
 
   it("rejects unresolvable visibleWhen paths", () => {

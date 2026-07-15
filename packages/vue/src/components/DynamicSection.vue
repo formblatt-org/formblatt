@@ -21,7 +21,7 @@ usePlacedFields(section.value ? directFieldNames(section.value.children) : []);
   <details v-if="section && ctx.isSectionVisible(section)" :open="!section.collapsed">
     <summary>{{ section.title }}</summary>
 
-    <template v-for="child in section.children" :key="child.type === 'section' ? child.id : child.name">
+    <template v-for="child in section.children" :key="child.type === 'field' ? child.name : child.id">
       <FieldControl
         v-if="child.type === 'field' && ctx.isVisible(child.path)"
         :of="ctx.form"

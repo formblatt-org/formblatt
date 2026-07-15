@@ -1,6 +1,7 @@
 import { inject, type Component, type ComputedRef, type InjectionKey } from "vue";
 import { fail } from "@formblatt/core";
 import type { FormDefinition, Option, PathKey, ResolvedNode, ValueField } from "@formblatt/core";
+import type { PagesApi } from "./composables/usePages";
 import type { DynamicFormStore } from "./form-store";
 
 /** A resolved layout section — the node kind `DynamicSection` renders. */
@@ -45,6 +46,9 @@ export interface FormContext {
    * `update:input` with the new value.
    */
   controls: Record<string, Component>;
+
+  /** Wizard state when the layout declares pages. See {@link PagesApi}. */
+  pages: PagesApi;
 
   /**
    * Coverage tracking — called by whoever *decides* to place a field, before
@@ -110,6 +114,10 @@ export interface UiText {
   removeRow: string;
   /** Announced while a populate lookup blocks the form. */
   populating: string;
+  /** Wizard navigation. `stepLabel` interpolates `{current}` and `{total}`. */
+  next: string;
+  back: string;
+  stepLabel: string;
   /** Fallback for required fields that declare no `requiredMessage`. */
   requiredMessage: string;
 }
@@ -123,6 +131,9 @@ export const DEFAULT_UI_TEXT: UiText = {
   addRow: "Add",
   removeRow: "Remove",
   populating: "Loading…",
+  next: "Next",
+  back: "Back",
+  stepLabel: "Step {current} of {total}",
   requiredMessage: "This field is required",
 };
 

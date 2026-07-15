@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { collectNames, directFieldNames, findSection, normalizeLayout, resolveNodes } from "~/lib/layout";
+import { collectFieldNames, collectNames, directFieldNames, findSection, normalizeLayout, resolveNodes } from "~/lib/layout";
 import type { FieldDefinition, FormDefinition, LayoutNode, ResolvedNode } from "~/types";
 
 const fields: FieldDefinition[] = [
@@ -119,6 +119,51 @@ describe("resolveNodes", () => {
     expect(resolveNodes([{ type: "field", name: "lines.line" }], nested)).toHaveLength(0);
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
+  });
+});
+
+describe("paged layouts", () => {
+  const pagedDef: FormDefinition = {
+    id: "paged",
+    fields: [
+      { name: "a", kind: "string" },
+      { name: "b", kind: "string" },
+      { name: "forgotten", kind: "string" },
+    ],
+    layout: [
+      { type: "page", id: "p1", title: "One", children: [{ type: "field", name: "a" }] },
+      { type: "page", id: "p2", title: "Two", children: [{ type: "field", name: "b" }] },
+    ],
+  };
+
+  it("appends orphans into the LAST page instead of after it", () => {
+    const nodes = normalizeLayout(pagedDef);
+    expect(nodes).toHaveLength(2);
+    expect((nodes[1] as any).children).toEqual([
+      { type: "field", name: "b" },
+      { type: "field", name: "forgotten" },
+    ]);
+  });
+
+  it("resolves pages with their children", () => {
+    const resolved = resolveNodes(normalizeLayout(pagedDef), pagedDef.fields);
+    expect(resolved[0]).toMatchObject({ type: "page", id: "p1", title: "One" });
+    expect((resolved[0] as any).children[0]).toMatchObject({ type: "field", name: "a" });
+  });
+
+  it("findSection descends into pages, collectFieldNames gathers every depth", () => {
+    const withSection: FormDefinition = {
+      ...pagedDef,
+      layout: [{
+        type: "page", id: "p1", children: [
+          { type: "section", id: "s", title: "S", children: [{ type: "field", name: "a" }] },
+          { type: "field", name: "b" },
+        ],
+      }],
+    };
+    const resolved = resolveNodes(normalizeLayout(withSection), withSection.fields);
+    expect(findSection(resolved, "s")?.title).toBe("S");
+    expect(collectFieldNames(resolved)).toEqual(["a", "b", "forgotten"]);
   });
 });
 

@@ -383,11 +383,11 @@ function lintAffects(definition: FormDefinition, issues: LintIssue[]): void {
 function lintLayout(definition: FormDefinition, issues: LintIssue[]): void {
   if (!definition.layout) return;
 
-  const sectionIds = new Map<string, number>();
+  const nodeIds = new Map<string, number>();
   const orphanId = definition.orphanSection?.id ?? "__orphans";
-  sectionIds.set(orphanId, definition.orphanSection ? 1 : 0);
+  nodeIds.set(orphanId, definition.orphanSection ? 1 : 0);
 
-  const visit = (nodes: readonly LayoutNode[], location: string) => {
+  const visit = (nodes: readonly LayoutNode[], location: string, topLevel: boolean) => {
     nodes.forEach((node, index) => {
       const here = `${location}[${index}]`;
 
@@ -401,17 +401,27 @@ function lintLayout(definition: FormDefinition, issues: LintIssue[]): void {
         return;
       }
 
-      sectionIds.set(node.id, (sectionIds.get(node.id) ?? 0) + 1);
+      if (node.type === "page" && !topLevel) {
+        error(issues, here, "pages are wizard steps — they can only appear at the top level of the layout");
+      }
+
+      nodeIds.set(node.id, (nodeIds.get(node.id) ?? 0) + 1);
       if (node.visibleWhen) {
         lintReadPaths(definition.fields, collectConditionPaths(node.visibleWhen), here, "visibleWhen path", issues);
       }
-      visit(node.children, `${here}.children`);
+      visit(node.children, `${here}.children`, false);
     });
   };
 
-  visit(definition.layout, "layout");
+  visit(definition.layout, "layout", true);
 
-  for (const [id, count] of sectionIds) {
-    if (count > 1) error(issues, "layout", `section id "${id}" is used ${count} times — ids must be unique`);
+  // a page turns the whole layout into a wizard — a loose top-level sibling would never render
+  const pageCount = definition.layout.filter(node => node.type === "page").length;
+  if (pageCount > 0 && pageCount < definition.layout.length) {
+    error(issues, "layout", "a layout with pages must consist of pages only at the top level");
+  }
+
+  for (const [id, count] of nodeIds) {
+    if (count > 1) error(issues, "layout", `section/page id "${id}" is used ${count} times — ids must be unique`);
   }
 }

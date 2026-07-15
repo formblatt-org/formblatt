@@ -36,10 +36,12 @@ import {
 } from "../form-context";
 import { createReader, isFormDirty, writeFieldErrors } from "../form-store";
 import { useCoverageWarnings } from "../internal/coverage";
+import { focusFirstInvalid } from "../internal/focus";
 import { useAffects } from "../composables/useAffects";
 import { usePopulate } from "../composables/usePopulate";
 import { useOptions } from "../composables/useOptions";
 import { useComputed } from "../composables/useComputed";
+import { usePages } from "../composables/usePages";
 import DynamicLayout from "./DynamicLayout.vue";
 
 const props = defineProps<{
@@ -118,6 +120,10 @@ const { isPopulating } = usePopulate(form, definition, props.resolvePopulate);
 const { optionsFor, isLoadingOptions, isLoadingAnyOptions } = useOptions(form, definition, props.resolveOptions);
 const { isComputing, isComputingAny } = useComputed(form, definition, props.resolveComputed);
 const { register, unregister } = useCoverageWarnings(definition);
+const pages = usePages(form, definition, resolvedLayout);
+
+// top-level refs auto-unwrap in the template; the `pages` object's members would not
+const isLastPage = pages.isLast;
 
 /**
  * Async work that can still change values: a submit now would ship a stale
@@ -181,24 +187,16 @@ const formComponent = useTemplateRef<ComponentPublicInstance>("formEl");
 
 onMounted(() => {
   const element = formComponent.value?.$el as HTMLFormElement | undefined;
-  element?.addEventListener("submit", () => void focusFirstInvalid(element));
+  element?.addEventListener("submit", () => void focusInvalidAfterSubmit(element));
 });
 
 /** The native submit fires before validation settles — wait it out, then check. */
-async function focusFirstInvalid(element: HTMLFormElement): Promise<void> {
+async function focusInvalidAfterSubmit(element: HTMLFormElement): Promise<void> {
   for (let i = 0; i < 3; i++) {
     await nextTick();
     await Promise.resolve();
   }
-  if (form.isValid) return;
-
-  // aria-invalid may sit on a group container (radio fieldset) — focus its first control then
-  const invalid = element.querySelector<HTMLElement>('[aria-invalid="true"]');
-  if (!invalid) return;
-  const control = invalid.matches("input, select, textarea")
-    ? invalid
-    : invalid.querySelector<HTMLElement>("input, select, textarea");
-  (control ?? invalid).focus();
+  if (!form.isValid) focusFirstInvalid(element);
 }
 
 provide(FormContextKey, {
@@ -207,6 +205,7 @@ provide(FormContextKey, {
   errorDisplay: props.errorDisplay ?? "always",
   text,
   controls: props.controls ?? {},
+  pages,
   resolvedLayout,
   resolveField,
   isVisible,
@@ -244,13 +243,15 @@ defineExpose({ form, isPopulating, isBusy, isDirty })
         :is-busy="isBusy"
         :is-computing="isComputing"
         :is-loading-options="isLoadingOptions"
+        :pages="pages"
       >
         <DynamicLayout />
 
         <!-- deliberately NOT disabled while invalid: submitting surfaces the errors and
              focuses the first one — a dead button explains nothing -->
         <div class="actions">
-          <button type="submit" class="btn btn-primary" :disabled="form.isSubmitting || isBusy">
+          <!-- a wizard submits from its last step; DynamicLayout renders the step navigation -->
+          <button v-if="!pages.enabled || isLastPage" type="submit" class="btn btn-primary" :disabled="form.isSubmitting || isBusy">
             {{ form.isSubmitting ? text.submitting : (submitLabel ?? text.submit) }}
           </button>
           <button type="button" class="btn" @click="reset(form)">{{ text.reset }}</button>

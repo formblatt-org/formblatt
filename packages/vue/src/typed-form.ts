@@ -18,12 +18,19 @@ export type ValueFieldNames<T extends FormDefinition> =
 export type ArrayFieldNames<T extends FormDefinition> =
   Extract<TopLevelField<T>, { kind: "array" }>["name"];
 
-type NodeSectionIds<N> = N extends { type: "section"; id: infer I extends string; children: infer C extends readonly unknown[] }
-  ? I | NodeSectionIds<C[number]>
-  : never;
+type NodeSectionIds<N> =
+  N extends { type: "section"; id: infer I extends string; children: infer C extends readonly unknown[] }
+    ? I | NodeSectionIds<C[number]>
+    : N extends { type: "page"; children: infer C extends readonly unknown[] }
+      ? NodeSectionIds<C[number]>
+      : never;
 
-/** Ids of sections (at any depth) declared in the definition's layout. */
+/** Ids of sections (at any depth, pages included) declared in the definition's layout. */
 export type SectionIds<T extends FormDefinition> = NodeSectionIds<NonNullable<T["layout"]>[number]>;
+
+/** Ids of the wizard pages declared in the definition's layout. */
+export type PageIds<T extends FormDefinition> =
+  Extract<NonNullable<T["layout"]>[number], { type: "page" }>["id"];
 
 // ---- output inference from a literal-typed definition ----
 
