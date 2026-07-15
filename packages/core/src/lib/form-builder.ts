@@ -26,6 +26,21 @@ export type FormSchema = GenericSchema<FormData>;
  */
 type ConditionalPaths = ReadonlySet<string>;
 
+/** Host-tunable knobs of {@link buildFormSchema}. */
+export interface BuildFormSchemaOptions {
+  /**
+   * Fallback message for required fields that declare no `requiredMessage` —
+   * the i18n hook. Defaults to English ("This field is required").
+   */
+  requiredMessage?: string;
+}
+
+/** What every schema-building step needs — threaded instead of N loose params. */
+interface BuildContext {
+  conditionalPaths: ConditionalPaths;
+  requiredMessage: string;
+}
+
 type ValidationAction = v.GenericPipeAction<any, any, any>;
 type ValidationFactory = (rule: ValidationRule) => ValidationAction;
 
@@ -97,10 +112,16 @@ const forwardTo = (action: ValidationAction, path: readonly PathKey[]): unknown 
  * {@link withRequiredWhenVisible}, otherwise a hidden required field would
  * block submit with an error the user can never see.
  */
-export function buildFormSchema(definition: FormDefinition): FormSchema {
-  const conditionalPaths = collectConditionalPaths(definition);
-  const root = v.object(buildEntries(definition.fields, [], conditionalPaths));
-  return withRequiredWhenVisible(root, definition) as FormSchema;
+export function buildFormSchema(
+  definition: FormDefinition,
+  options?: BuildFormSchemaOptions,
+): FormSchema {
+  const context: BuildContext = {
+    conditionalPaths: collectConditionalPaths(definition),
+    requiredMessage: options?.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE,
+  };
+  const root = v.object(buildEntries(definition.fields, [], context));
+  return withRequiredWhenVisible(root, definition, context.requiredMessage) as FormSchema;
 }
 
 /** Collects the targets of every visibility affect; `populate` targets nothing. */
@@ -115,12 +136,12 @@ function collectConditionalPaths(definition: FormDefinition): ConditionalPaths {
 function buildEntries(
   fields: readonly FieldDefinition[],
   parentPath: readonly PathKey[],
-  conditionalPaths: ConditionalPaths,
+  context: BuildContext,
 ): Record<string, GenericSchema> {
   return Object.fromEntries(
     fields.map(field => [
       field.name,
-      buildField(field, [...parentPath, field.name], conditionalPaths),
+      buildField(field, [...parentPath, field.name], context),
     ]),
   );
 }
@@ -129,11 +150,11 @@ function buildEntries(
 function buildField(
   field: FieldDefinition,
   path: readonly PathKey[],
-  conditionalPaths: ConditionalPaths,
+  context: BuildContext,
 ): GenericSchema {
-  const enforcesRequired = enforcesOwnRequired(field, path, conditionalPaths);
+  const enforcesRequired = enforcesOwnRequired(field, path, context.conditionalPaths);
 
-  let schema = buildKindSchema(field, path, conditionalPaths, enforcesRequired);
+  let schema = buildKindSchema(field, path, context, enforcesRequired);
   if (field.nullable) schema = v.nullable(schema);
   if (!enforcesRequired) schema = v.optional(schema);
   return schema;
@@ -161,25 +182,25 @@ function enforcesOwnRequired(
 function buildKindSchema(
   field: FieldDefinition,
   path: readonly PathKey[],
-  conditionalPaths: ConditionalPaths,
+  context: BuildContext,
   required: boolean,
 ): GenericSchema {
   switch (field.kind) {
-    case "string": return buildStringSchema(field, required);
-    case "number": return buildNumberSchema(field, required);
-    case "enum": return buildEnumSchema(field, required);
-    case "boolean": return buildBooleanSchema(field, required);
-    case "date": return buildDateSchema(field, required);
-    case "object": return buildObjectSchema(field, path, conditionalPaths);
+    case "string": return buildStringSchema(field, required, context);
+    case "number": return buildNumberSchema(field, required, context);
+    case "enum": return buildEnumSchema(field, required, context);
+    case "boolean": return buildBooleanSchema(field, required, context);
+    case "date": return buildDateSchema(field, required, context);
+    case "object": return buildObjectSchema(field, path, context);
     // every row shares one item schema, so the item's path carries no index
-    case "array": return v.array(buildField(field.item, path, conditionalPaths));
+    case "array": return v.array(buildField(field.item, path, context));
   }
 }
 
 /** A required string must be non-empty; `""` reports as missing, not as a length error. */
-function buildStringSchema(field: ValueField, required: boolean): GenericSchema {
+function buildStringSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const validations = required
-    ? [{ type: "nonEmpty", message: requiredMessageOf(field) }, ...(field.validations ?? [])]
+    ? [{ type: "nonEmpty", message: requiredMessageOf(field, context) }, ...(field.validations ?? [])]
     : field.validations;
   return withValidations(v.string(), validations, STRING_VALIDATIONS);
 }
@@ -189,8 +210,8 @@ function buildStringSchema(field: ValueField, required: boolean): GenericSchema 
  * `number | undefined`), so it carries the required message instead of
  * "Expected number but received undefined". `NaN` fails the same way.
  */
-function buildNumberSchema(field: ValueField, required: boolean): GenericSchema {
-  const base = required ? v.number(requiredMessageOf(field)) : v.number();
+function buildNumberSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
+  const base = required ? v.number(requiredMessageOf(field, context)) : v.number();
   return withValidations(base, field.validations, NUMBER_VALIDATIONS);
 }
 
@@ -200,8 +221,8 @@ function buildNumberSchema(field: ValueField, required: boolean): GenericSchema 
  * ones are only known once the host resolves them, so the schema requires a
  * string — and for a required field also rejects `""`.
  */
-function buildEnumSchema(field: ValueField, required: boolean): GenericSchema {
-  const message = required ? requiredMessageOf(field) : undefined;
+function buildEnumSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
+  const message = required ? requiredMessageOf(field, context) : undefined;
 
   if (field.optionsSource) {
     return message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string();
@@ -214,8 +235,8 @@ function buildEnumSchema(field: ValueField, required: boolean): GenericSchema {
  * the required message. `false` is a value — "must be checked" is the
  * `isTrue` validation, not `required`.
  */
-function buildBooleanSchema(field: ValueField, required: boolean): GenericSchema {
-  const base = required ? v.boolean(requiredMessageOf(field)) : v.boolean();
+function buildBooleanSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
+  const base = required ? v.boolean(requiredMessageOf(field, context)) : v.boolean();
   return withValidations(base, field.validations, BOOLEAN_VALIDATIONS);
 }
 
@@ -224,9 +245,9 @@ function buildBooleanSchema(field: ValueField, required: boolean): GenericSchema
  * — which therefore carries the required message. A present but malformed
  * value keeps `isoDate`'s own error.
  */
-function buildDateSchema(field: ValueField, required: boolean): GenericSchema {
+function buildDateSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const base = required
-    ? v.pipe(v.string(requiredMessageOf(field)), v.isoDate())
+    ? v.pipe(v.string(requiredMessageOf(field, context)), v.isoDate())
     : v.pipe(v.string(), v.isoDate());
   return withValidations(base, field.validations, DATE_VALIDATIONS);
 }
@@ -235,9 +256,9 @@ function buildDateSchema(field: ValueField, required: boolean): GenericSchema {
 function buildObjectSchema(
   field: ObjectField,
   path: readonly PathKey[],
-  conditionalPaths: ConditionalPaths,
+  context: BuildContext,
 ): GenericSchema {
-  const entries: GenericSchema = v.object(buildEntries(field.fields, path, conditionalPaths));
+  const entries: GenericSchema = v.object(buildEntries(field.fields, path, context));
   return (field.checks ?? []).reduce(
     (schema, check) => pipe(schema, toCheckAction(check)),
     entries,
@@ -263,7 +284,11 @@ function toCheckAction(check: ObjectCheck): unknown {
  * checks: required only while their affects show them, with the error
  * forwarded to the field so it renders in place.
  */
-function withRequiredWhenVisible(root: GenericSchema, definition: FormDefinition): GenericSchema {
+function withRequiredWhenVisible(
+  root: GenericSchema,
+  definition: FormDefinition,
+  requiredMessage: string,
+): GenericSchema {
   return conditionalRequiredFields(definition).reduce((schema, field) => {
     const filledWhenVisible = (data: FormData) => {
       const read: ValueReader = path => getByPath(data, path);
@@ -271,7 +296,7 @@ function withRequiredWhenVisible(root: GenericSchema, definition: FormDefinition
       return !visible || !isEmpty(getByPath(data, field.path));
     };
 
-    const action = v.check(filledWhenVisible, field.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE);
+    const action = v.check(filledWhenVisible, field.requiredMessage ?? requiredMessage);
     return pipe(schema, forwardTo(action, field.path));
   }, root);
 }
@@ -289,8 +314,8 @@ function withValidations(
   return actions.length ? pipe(base, ...actions) : base;
 }
 
-const requiredMessageOf = (field: FieldDefinition) =>
-  field.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE;
+const requiredMessageOf = (field: FieldDefinition, context: BuildContext) =>
+  field.requiredMessage ?? context.requiredMessage;
 
 /**
  * Collects the `initial` values declared across a definition. Fields without

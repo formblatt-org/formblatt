@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, useId } from "vue";
+import { computed, inject, useId } from "vue";
 import type { FieldElementProps } from "@formisch/vue";
 import type { Option, ValueField } from "@formblatt/core";
+import { DEFAULT_UI_TEXT, FormContextKey } from "../form-context";
 
 const props = defineProps<{
   field: ValueField;
@@ -17,6 +18,10 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:input": [value: unknown] }>()
 
 const choices = computed<readonly Option[]>(() => props.options ?? props.field.options ?? []);
+
+// optional by design: DynamicInput also works outside a DynamicForm, with English defaults
+const ctx = inject(FormContextKey, null);
+const text = computed(() => ctx?.text.value ?? DEFAULT_UI_TEXT);
 
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
@@ -78,7 +83,7 @@ const onTextInput = (event: Event) => {
         <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
           <span v-if="loading" class="spinner-select" aria-hidden="true" />
           <select v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
-            <option value="">{{ loading ? 'Loading…' : '— Select —' }}</option>
+            <option value="">{{ loading ? text.loading : text.selectPlaceholder }}</option>
             <option v-for="choice in choices" :key="choice.value" :value="choice.value">
               {{ choice.label }}
             </option>

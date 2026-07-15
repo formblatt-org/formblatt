@@ -20,7 +20,7 @@ import type {
   PopulateResolver,
   ValueField,
 } from "@formblatt/core";
-import { FormContextKey, type ErrorDisplay, type ResolvedSection } from "../form-context";
+import { DEFAULT_UI_TEXT, FormContextKey, type ErrorDisplay, type ResolvedSection, type UiText } from "../form-context";
 import { createReader } from "../form-store";
 import { useCoverageWarnings } from "../internal/coverage";
 import { useAffects } from "../composables/useAffects";
@@ -41,16 +41,21 @@ const props = defineProps<{
   errorDisplay?: ErrorDisplay;
   /** Label of the default submit button. Ignored when the default slot is replaced. */
   submitLabel?: string;
+  /** Overrides for the built-in UI strings — the i18n hook. Merged over English defaults. */
+  text?: Partial<UiText>;
 }>()
 
 const emit = defineEmits<{ submit: [values: unknown] }>()
+
+const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 
 // Migrated and validated once at setup: a changed definition prop needs a :key
 // remount anyway, since useForm builds its store only once.
 const definition = validateDefinition(migrateDefinition(props.definition));
 
 const form = useForm({
-  schema: buildFormSchema(definition),
+  // the schema is built once, so a locale change to `text.requiredMessage` needs a :key remount
+  schema: buildFormSchema(definition, { requiredMessage: text.value.requiredMessage }),
   initialInput: buildInitialInput(definition),
   validate: definition.validate,
   revalidate: definition.revalidate,
@@ -121,6 +126,7 @@ provide(FormContextKey, {
   form,
   definition,
   errorDisplay: props.errorDisplay ?? "always",
+  text,
   resolvedLayout,
   resolveField,
   isVisible,
@@ -164,16 +170,16 @@ defineExpose({ form, isPopulating, isBusy })
              focuses the first one — a dead button explains nothing -->
         <div class="actions">
           <button type="submit" class="btn btn-primary" :disabled="form.isSubmitting || isBusy">
-            {{ form.isSubmitting ? 'Submitting…' : (submitLabel ?? 'Submit') }}
+            {{ form.isSubmitting ? text.submitting : (submitLabel ?? text.submit) }}
           </button>
-          <button type="button" class="btn" @click="reset(form)">Reset</button>
+          <button type="button" class="btn" @click="reset(form)">{{ text.reset }}</button>
         </div>
       </slot>
     </div>
 
     <div v-if="isPopulating" class="busy-overlay" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true" />
-      <span>Loading…</span>
+      <span>{{ text.populating }}</span>
     </div>
   </Form>
 </template>

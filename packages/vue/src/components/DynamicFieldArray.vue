@@ -92,10 +92,10 @@ usePlacedFields([props.name]);
             :key="entry.relPath.join('.') || '@self'"
             v-bind="controlProps(index, entry)"
           />
-          <button type="button" class="btn-row" @click="remove(index)">Remove</button>
+          <button type="button" class="btn-row" @click="remove(index)">{{ ctx.text.value.removeRow }}</button>
         </div>
 
-        <button type="button" class="btn-row" @click="insert()">Add</button>
+        <button type="button" class="btn-row" @click="insert()">{{ ctx.text.value.addRow }}</button>
 
         <ul v-if="array.errors" class="array-errors">
           <li v-for="error in array.errors" :key="error">{{ error }}</li>

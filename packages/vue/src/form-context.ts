@@ -35,6 +35,9 @@ export interface FormContext {
    */
   errorDisplay: ErrorDisplay;
 
+  /** The form's UI strings, defaults merged with the `text` prop. */
+  text: ComputedRef<UiText>;
+
   /**
    * Coverage tracking — called by whoever *decides* to place a field, before
    * the visibility `v-if` (a hidden field is still a placed field).
@@ -44,6 +47,37 @@ export interface FormContext {
 }
 
 export type ErrorDisplay = "always" | "touched";
+
+/**
+ * Every built-in UI string, overridable per form via `DynamicForm`'s `text`
+ * prop — the i18n hook. `requiredMessage` is compiled into the schema at
+ * mount; changing locale means remounting the form (`:key`).
+ */
+export interface UiText {
+  submit: string;
+  submitting: string;
+  reset: string;
+  loading: string;
+  selectPlaceholder: string;
+  addRow: string;
+  removeRow: string;
+  /** Announced while a populate lookup blocks the form. */
+  populating: string;
+  /** Fallback for required fields that declare no `requiredMessage`. */
+  requiredMessage: string;
+}
+
+export const DEFAULT_UI_TEXT: UiText = {
+  submit: "Submit",
+  submitting: "Submitting…",
+  reset: "Reset",
+  loading: "Loading…",
+  selectPlaceholder: "— Select —",
+  addRow: "Add",
+  removeRow: "Remove",
+  populating: "Loading…",
+  requiredMessage: "This field is required",
+};
 
 export const FormContextKey: InjectionKey<FormContext> = Symbol("formblatt-form-context");
 
