@@ -1,0 +1,26 @@
+{
+  "name": "formblatt-demo",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxi typecheck"
+  },
+  "dependencies": {
+    "@formblatt/core": "workspace:*",
+    "@formblatt/vue": "workspace:*",
+    "@formisch/vue": "1.0.0-rc.0",
+    "nuxt": "^4.4.8",
+    "valibot": "^1.4.2",
+    "vue": "^3.5.39",
+    "vue-router": "^5.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.7"
+  }
+}
