@@ -4,4 +4,5 @@ export * from "./lib/path";
 export * from "./lib/condition";
 export * from "./lib/expression";
 export * from "./lib/affect";
+export * from "./lib/layout";
 export * from "./lib/field";
