@@ -166,10 +166,12 @@ describe("useOptions", () => {
     await settle();
 
     expect(result.isLoadingOptions(["country"])).toBe(true);
+    expect(result.isLoadingAnyOptions.value).toBe(true);
 
     pending.release([]);
     await settle();
 
     expect(result.isLoadingOptions(["country"])).toBe(false);
+    expect(result.isLoadingAnyOptions.value).toBe(false);
   });
 });

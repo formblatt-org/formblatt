@@ -66,9 +66,17 @@ const resolvedLayout = computed(() =>
 
 const { isVisible } = useAffects(form, definition);
 const { isPopulating } = usePopulate(form, definition, props.resolvePopulate);
-const { optionsFor, isLoadingOptions } = useOptions(form, definition, props.resolveOptions);
-const { isComputing } = useComputed(form, definition, props.resolveComputed);
+const { optionsFor, isLoadingOptions, isLoadingAnyOptions } = useOptions(form, definition, props.resolveOptions);
+const { isComputing, isComputingAny } = useComputed(form, definition, props.resolveComputed);
 const { register, unregister } = useCoverageWarnings(definition);
+
+/**
+ * Async work that can still change values: a submit now would ship a stale
+ * payload (in-flight computed, an options reconcile that may clear a value)
+ * or race a multi-field write (populate).
+ */
+const isBusy = computed(() =>
+  isPopulating.value || isComputingAny.value || isLoadingAnyOptions.value);
 
 const resolveField = (name: string): ValueField | undefined => {
   const field = fieldsByName.value[name];
@@ -86,7 +94,7 @@ const isSectionVisible = (section: ResolvedSection): boolean =>
 
 const submitForm = (values: unknown) => {
   // a disabled button does not stop submit(form) or requestSubmit()
-  if (isPopulating.value) return;
+  if (isBusy.value) return;
   emit("submit", values);
 }
 
@@ -105,7 +113,7 @@ provide(FormContextKey, {
   unregister,
 })
 
-defineExpose({ form, isPopulating })
+defineExpose({ form, isPopulating, isBusy })
 </script>
 
 <template>
@@ -127,13 +135,16 @@ defineExpose({ form, isPopulating })
         :is-valid="form.isValid"
         :is-submitting="form.isSubmitting"
         :is-populating="isPopulating"
+        :is-busy="isBusy"
         :is-computing="isComputing"
         :is-loading-options="isLoadingOptions"
       >
         <DynamicLayout />
 
+        <!-- deliberately NOT disabled while invalid: submitting surfaces the errors and
+             focuses the first one — a dead button explains nothing -->
         <div class="actions">
-          <button type="submit" class="btn btn-primary" :disabled="form.isSubmitting || !form.isValid || isPopulating">
+          <button type="submit" class="btn btn-primary" :disabled="form.isSubmitting || isBusy">
             {{ form.isSubmitting ? 'Submitting…' : (submitLabel ?? 'Submit') }}
           </button>
           <button type="button" class="btn" @click="reset(form)">Reset</button>

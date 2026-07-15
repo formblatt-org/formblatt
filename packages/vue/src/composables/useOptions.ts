@@ -107,6 +107,8 @@ export function useOptions(
   return {
     optionsFor: (path: readonly PathKey[]): Option[] | undefined => optionsByPath[toPathKey(path)],
     isLoadingOptions: (path: readonly PathKey[]) => loading.isSet(path),
+    /** True while ANY options load is in flight — its reconcile pass may still clear a value. */
+    isLoadingAnyOptions: loading.any,
   };
 }
 

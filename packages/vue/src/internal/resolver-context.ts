@@ -1,4 +1,4 @@
-import { reactive } from "vue";
+import { computed, reactive } from "vue";
 import { toPathKey, type PathKey, type ValueReader } from "@formblatt/core";
 
 /** A list of dependency paths, as `optionsSource.dependsOn` / `computed.dependsOn` declare them. */
@@ -34,5 +34,7 @@ export function createPathFlags() {
       flags[toPathKey(path)] = value;
     },
     isSet: (path: readonly PathKey[]) => !!flags[toPathKey(path)],
+    /** Whether ANY path has its flag set — submit gates on this. */
+    any: computed(() => Object.values(flags).some(Boolean)),
   };
 }

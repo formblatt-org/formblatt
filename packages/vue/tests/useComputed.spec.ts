@@ -34,6 +34,24 @@ describe("useComputed — expression mode", () => {
 
     expect(readInput(form, ["fullName"])).toBe("Grace Lovelace");
   });
+
+  it("stores undefined rather than Infinity for a division by zero", async () => {
+    const divDef: FormDefinition = {
+      id: "computed-div",
+      fields: [
+        { name: "total", kind: "number", initial: 10 },
+        { name: "count", kind: "number", initial: 0 },
+        {
+          name: "average", kind: "number", required: false,
+          computed: { expression: { op: "div", args: [{ ref: ["total"] }, { ref: ["count"] }] } },
+        },
+      ],
+    };
+    const { form } = withForm(divDef, form => useComputed(form, divDef, noopResolver));
+    await settle();
+
+    expect(readInput(form, ["average"])).toBeUndefined();
+  });
 });
 
 describe("useComputed — object-nested fields", () => {
@@ -193,11 +211,13 @@ describe("useComputed — source mode", () => {
     await settle();
 
     expect(result.isComputing(["tax"])).toBe(true);
+    expect(result.isComputingAny.value).toBe(true);
 
     pending.release(8.25);
     await settle();
 
     expect(result.isComputing(["tax"])).toBe(false);
+    expect(result.isComputingAny.value).toBe(false);
   });
 
   it("discards a stale response when a newer recompute has started", async () => {

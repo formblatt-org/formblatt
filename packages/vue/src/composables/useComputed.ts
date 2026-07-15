@@ -46,11 +46,12 @@ export function useComputed(
   const read = createReader(form);
 
   /**
-   * `NaN` never enters the store — it is what arithmetic over a not-yet-filled
-   * field produces (qty × price on a fresh row) and means "no value".
+   * A non-finite number never enters the store — `NaN` is what arithmetic over
+   * a not-yet-filled field produces (qty × price on a fresh row), `Infinity`
+   * what a division by zero produces; both mean "no value".
    */
   const writeComputed = (path: readonly PathKey[], value: unknown) => {
-    const normalized = typeof value === "number" && Number.isNaN(value) ? undefined : value;
+    const normalized = typeof value === "number" && !Number.isFinite(value) ? undefined : value;
     writeInputIfChanged(form, path, normalized);
   };
 
@@ -142,5 +143,9 @@ export function useComputed(
     return (readInput(form, [name]) as unknown[] | null | undefined) ?? [];
   }
 
-  return { isComputing: (path: readonly PathKey[]) => computing.isSet(path) };
+  return {
+    isComputing: (path: readonly PathKey[]) => computing.isSet(path),
+    /** True while ANY source-mode value is in flight — submitting then would ship a stale payload. */
+    isComputingAny: computing.any,
+  };
 }
