@@ -34,6 +34,19 @@ interface BaseField {
   required?: boolean;
   /** Overrides the default "This field is required" message. */
   requiredMessage?: string;
+  /**
+   * Defaults to `false`. Never renders the field, but keeps it in the data —
+   * `initial`, computed and populated values still submit. A hidden field
+   * never enforces `required` (its error could never be seen), though content
+   * validations still apply.
+   */
+  hidden?: boolean;
+  /**
+   * Defaults to `false`. Renders the field's control disabled. Like `computed`
+   * fields, a disabled field never enforces `required` — the user cannot fill
+   * it in — though content validations still apply.
+   */
+  disabled?: boolean;
   /** Allows `null` as a value. */
   nullable?: boolean;
   /** Content validations, applied in order after the kind's base check. */

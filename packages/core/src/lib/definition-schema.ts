@@ -79,6 +79,8 @@ const baseFieldEntries = {
   label: v.optional(v.string()),
   required: v.optional(v.boolean()),
   requiredMessage: v.optional(v.string()),
+  hidden: v.optional(v.boolean()),
+  disabled: v.optional(v.boolean()),
   nullable: v.optional(v.boolean()),
   validations: v.optional(v.array(ValidationRuleSchema)),
 };
