@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { ComputedResolver, OptionsResolver, PathKey, PopulateResolver } from "@formblatt/core";
+import type { ComputedResolver, PathKey } from "@formblatt/core";
 import {
   createTypedForm,
   defineFormDefinition,
@@ -44,10 +44,7 @@ const cartDefinition = defineFormDefinition({
 // These locals shadow the auto-imported components in the template.
 const { DynamicField, DynamicFieldArray } = createTypedForm(cartDefinition);
 
-// this form has neither populate rules nor dynamic options — no-op resolvers
-const resolvePopulate: PopulateResolver = () => [];
-const resolveOptions: OptionsResolver = () => [];
-
+// this form has neither populate rules nor dynamic options, so only the computed resolver is passed
 const resolveComputed: ComputedResolver = (source, { deps }) =>
   source === "subtotal" ? subtotalOf((deps.lines ?? []) as CartLine[]) : 0;
 
@@ -98,8 +95,6 @@ const placeOrder = (values: unknown) => {
 
     <DynamicForm
       :definition="cartDefinition"
-      :resolve-populate="resolvePopulate"
-      :resolve-options="resolveOptions"
       :resolve-computed="resolveComputed"
       @submit="placeOrder"
       v-slot="{ form, isSubmitting }"

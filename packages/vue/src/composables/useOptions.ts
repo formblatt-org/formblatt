@@ -1,5 +1,5 @@
 import { reactive, watch } from "vue";
-import { isDynamicOptionsField, isEmpty, reportError, toPathKey } from "@formblatt/core";
+import { isDynamicOptionsField, isEmpty, reportError, toPathKey, warn } from "@formblatt/core";
 import type { FormDefinition, Option, OptionsResolver, PathKey } from "@formblatt/core";
 import { createLatestOnly } from "../internal/latest-only";
 import {
@@ -33,12 +33,17 @@ interface DynamicOptions {
 export function useOptions(
   form: DynamicFormStore,
   definition: FormDefinition,
-  resolve: OptionsResolver,
+  resolve?: OptionsResolver,
 ) {
   const optionsByPath = reactive<Record<string, Option[]>>({});
   const loading = createPathFlags();
   const latest = createLatestOnly();
   const read = createReader(form);
+  const dynamicFields = collectDynamicOptions(definition);
+
+  if (dynamicFields.length && !resolve) {
+    warn("options", "the definition declares optionsSource fields but no OptionsResolver was given — their options will never load");
+  }
 
   const setOptions = (path: readonly PathKey[], options: Option[]) => {
     optionsByPath[toPathKey(path)] = options;
@@ -49,7 +54,7 @@ export function useOptions(
     loading.set(field.path, true);
 
     try {
-      const options = await resolve(field.source, {
+      const options = await resolve!(field.source, {
         path: [...field.path],
         deps: readDependencies(read, field.dependsOn),
         input: readAllInput(form),
@@ -93,7 +98,7 @@ export function useOptions(
     );
   };
 
-  for (const field of collectDynamicOptions(definition)) {
+  for (const field of resolve ? dynamicFields : []) {
     if (field.dependsOn.length) watchDependencies(field);
     else void load(field);
   }

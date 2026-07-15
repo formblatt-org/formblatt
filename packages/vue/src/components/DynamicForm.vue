@@ -31,9 +31,12 @@ import DynamicLayout from "./DynamicLayout.vue";
 
 const props = defineProps<{
   definition: FormDefinition;
-  resolvePopulate: PopulateResolver;
-  resolveOptions: OptionsResolver;
-  resolveComputed: ComputedResolver;
+  /** Required only when the definition declares `populate` affects — a warning tells you when it's missing. */
+  resolvePopulate?: PopulateResolver;
+  /** Required only when the definition declares `optionsSource` fields. */
+  resolveOptions?: OptionsResolver;
+  /** Required only when the definition declares source-mode `computed` fields. */
+  resolveComputed?: ComputedResolver;
   /** `"touched"` hides a field's errors until it is focused or a submit is attempted. Default: `"always"`. */
   errorDisplay?: ErrorDisplay;
   /** Label of the default submit button. Ignored when the default slot is replaced. */

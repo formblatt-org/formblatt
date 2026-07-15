@@ -1,5 +1,5 @@
 import { computed, ref, watch } from "vue";
-import { isEmpty, reportError, toPathKey } from "@formblatt/core";
+import { isEmpty, reportError, toPathKey, warn } from "@formblatt/core";
 import type {
   Affect,
   FormDefinition,
@@ -32,11 +32,15 @@ const isPopulateAffect = (affect: Affect): affect is PopulateAffect =>
 export function usePopulate(
   form: DynamicFormStore,
   definition: FormDefinition,
-  resolve: PopulateResolver,
+  resolve?: PopulateResolver,
 ) {
   const rules = (definition.affects ?? []).filter(isPopulateAffect);
   const latest = createLatestOnly();
   const pendingCount = ref(0);
+
+  if (rules.length && !resolve) {
+    warn("populate", "the definition declares populate affects but no PopulateResolver was given — they will not run");
+  }
 
   /** Field names each rule last wrote, keyed by its trigger path, so they can be reverted. */
   const writtenByRule = new Map<string, string[]>();
@@ -57,7 +61,7 @@ export function usePopulate(
     pendingCount.value++;
 
     try {
-      const result = await resolve(rule.source, value, {
+      const result = await resolve!(rule.source, value, {
         trigger: rule.trigger,
         input: readAllInput(form),
       });
@@ -71,7 +75,7 @@ export function usePopulate(
     }
   };
 
-  for (const rule of rules) {
+  for (const rule of resolve ? rules : []) {
     watch(
       () => readInput(form, rule.trigger),
       value => {

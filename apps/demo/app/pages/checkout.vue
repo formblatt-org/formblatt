@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { ComputedResolver, FormDefinition, Option, OptionsResolver, PathKey, PopulateResolver } from "@formblatt/core";
+import type { ComputedResolver, FormDefinition, Option, OptionsResolver, PathKey } from "@formblatt/core";
 import {
   DynamicForm,
   DynamicField,
@@ -102,9 +102,7 @@ const checkoutDefinition: FormDefinition = {
   ],
 }
 
-// no populate rules on this form, but DynamicForm always wants a resolver
-const resolvePopulate: PopulateResolver = () => [];
-
+// no populate rules on this form — that resolver stays unset
 const resolveOptions: OptionsResolver = (source, { deps }) => {
   if (source === "countries") {
     return [
@@ -159,7 +157,6 @@ const placeOrder = (values: unknown) => {
 
     <DynamicForm
       :definition="checkoutDefinition"
-      :resolve-populate="resolvePopulate"
       :resolve-options="resolveOptions"
       :resolve-computed="resolveComputed"
       @submit="placeOrder"
