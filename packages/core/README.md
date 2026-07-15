@@ -30,7 +30,9 @@ const schema = buildFormSchema(definition); // pass { requiredMessage } to local
 Key semantics (each documented in detail on the types):
 
 - **Required-when-visible** — fields targeted by visibility affects are optional in their own schema and re-required by a form-level check while visible, so a hidden required field can never block submit invisibly.
-- **Linting** — `validateDefinition` rejects definitions the engine would silently mishandle: unknown validation rule types, affect targets that don't resolve or address array rows, dangling condition/expression paths, colliding `dependsOn` terminals, duplicate section ids.
+- **Linting** — `validateDefinition` rejects definitions the engine would silently mishandle: unknown validation rule types, affect targets that don't resolve or address array rows, dangling condition/expression paths, colliding `dependsOn` terminals, duplicate section/page ids, misplaced wizard pages.
+- **Open validation** — `buildFormSchema` takes host-defined `rules`, a `validationResolver` for async `remote` checks (the schema goes async transparently), and an interpolated `messages` catalog for i18n.
+- **Hydration** — `buildInitialInput(definition, savedRecord)` merges host data over declared initials for edit workflows.
 - **Migrations** — definitions carry a `schemaVersion`; append-only migrations bring stored documents to the current shape.
 
 This package has no framework dependency — `valibot` is its only peer. For rendering, see [`@formblatt/vue`](https://www.npmjs.com/package/@formblatt/vue).

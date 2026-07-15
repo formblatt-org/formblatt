@@ -31,13 +31,15 @@ const definition = {
 
 ## The moving parts
 
-- **`DynamicForm`** — owns the store and provides context. Props: `definition`, optional `resolvePopulate` / `resolveOptions` / `resolveComputed` host resolvers (a warning tells you when a definition needs one), `errorDisplay: "always" | "touched"`, and `text` to override every built-in UI string (the i18n hook).
+- **`DynamicForm`** — owns the store and provides context. Props: `definition`, `initialData` (hydrate an edit workflow's saved record over the declared initials), host resolvers `resolvePopulate` / `resolveOptions` / `resolveComputed` / `resolveValidation` (each optional — a warning tells you when a definition needs one), `rules` (host-defined validation rules), `controls` (host-registered input components), `messages` (validation message catalog with `{field}` / `{value}` interpolation), `text` (every built-in UI string — the i18n hook), and `errorDisplay: "always" | "touched"`.
+- **Submit** — `@submit` receives the parsed values and a context; async handlers keep the form `isSubmitting` until they settle, and `context.setFieldErrors({ "email": "Taken" })` maps server-side errors back onto fields. `createTypedForm` types the payload from a literal definition.
 - **`DynamicField`** — one control, by top-level `name` or any `path` (e.g. `["address", "city"]`).
 - **`DynamicFieldArray`** — rows with add/remove/move/swap, headless via its slot.
-- **`createTypedForm(definition)`** — the same components re-typed against a literal definition, so `name` props autocomplete and typos fail typecheck.
-- **Composables** — `useAffects`, `usePopulate`, `useOptions`, `useComputed` for building your own components over the same engine.
+- **Wizard** — `page` nodes in the layout turn the form into a multi-step wizard: one step at a time, Next gated on the current page's validation, `visibleWhen` skips steps, submit on the last page.
+- **`createTypedForm(definition)`** — the same components re-typed against a literal definition, so `name` props autocomplete, typos fail typecheck and the submit payload is inferred.
+- **Composables** — `useAffects`, `usePopulate`, `useOptions`, `useComputed`, `usePages` for building your own components over the same engine.
 
-Interaction rules come from the definition: visibility affects (`show` / `hide` / `hideAndClear`), `populate` lookups that write many fields and revert cleanly, cascading dynamic options (country → state), and computed fields — synchronous expressions or async host-resolved sources, per-row inside arrays. Submit is gated while any of that is in flight, and a failed submit focuses the first invalid control.
+Interaction rules come from the definition: visibility affects (`show` / `hide` / `hideAndClear`), `populate` lookups that write many fields and revert cleanly, cascading dynamic options (country → state), and computed fields — synchronous expressions or async host-resolved sources, per-row inside arrays. Submit is gated while any of that is in flight, a failed submit focuses the first invalid control, and `is-dirty` (slot prop / expose) drives unsaved-changes guards.
 
 ## License
 
