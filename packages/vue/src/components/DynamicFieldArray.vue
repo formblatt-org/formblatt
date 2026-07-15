@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { FieldArray } from "@formisch/vue";
-import { isValueField, resolveFieldByPath, warn } from "@formblatt/core";
+import { isValueField, resolveFieldByPath, walkValueFields, warn } from "@formblatt/core";
 import type { ArrayField, PathKey, ValueField } from "@formblatt/core";
 import { useFormContext } from "../form-context";
 import { usePlacedFields } from "../internal/placement";
 import { insertItem, moveItem, removeItem, swapItems } from "../form-store";
 import FieldControl from "./FieldControl.vue";
 
-/** One control rendered per row. `key` is the child's name, or `null` when the item IS the value. */
+/** One control rendered per row. `relPath` is row-relative; empty when the item IS the value. */
 interface ItemField {
-  key: string | null;
+  relPath: string[];
   field: ValueField;
 }
 
@@ -33,18 +33,17 @@ const arrayField = computed<ArrayField | undefined>(() => {
   return field;
 });
 
-/** The value fields of one row: an object item's children, or the item itself when it is a value. Statically `hidden` fields are skipped. */
+/** The value fields of one row — an object item's leaves at any depth, or the item itself when it is a value. Statically `hidden` fields are skipped. */
 const itemFields = computed<ItemField[]>(() => {
   const item = arrayField.value?.item;
   if (!item) return [];
 
   if (item.kind === "object") {
-    return item.fields
-      .filter(isValueField)
-      .filter(field => !field.hidden)
-      .map(field => ({ key: field.name, field }));
+    return walkValueFields(item.fields)
+      .filter(entry => !entry.field.hidden)
+      .map(entry => ({ relPath: entry.path, field: entry.field }));
   }
-  return isValueField(item) && !item.hidden ? [{ key: null, field: item }] : [];
+  return isValueField(item) && !item.hidden ? [{ relPath: [], field: item }] : [];
 });
 
 const itemPath = (index: number, child?: string): PathKey[] =>
@@ -52,7 +51,7 @@ const itemPath = (index: number, child?: string): PathKey[] =>
 
 /** Builds a row control's props once, rather than rebuilding its path for each of them. */
 const controlProps = (index: number, entry: ItemField) => {
-  const fieldPath = itemPath(index, entry.key ?? undefined);
+  const fieldPath = [...path.value, index, ...entry.relPath];
 
   return {
     of: ctx.form,
@@ -90,7 +89,7 @@ usePlacedFields([props.name]);
         <div v-for="(id, index) in array.items" :key="id" class="array-item">
           <FieldControl
             v-for="entry in itemFields"
-            :key="entry.key ?? '@self'"
+            :key="entry.relPath.join('.') || '@self'"
             v-bind="controlProps(index, entry)"
           />
           <button type="button" class="btn-row" @click="remove(index)">Remove</button>

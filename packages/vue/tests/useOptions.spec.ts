@@ -117,6 +117,48 @@ describe("useOptions", () => {
     expect(result.optionsFor(["state"])).toEqual(STATES.de);
   });
 
+  it("loads options for an object-nested enum with its nested path", async () => {
+    const nestedDef: FormDefinition = {
+      id: "options-nested",
+      fields: [{
+        name: "address", kind: "object", fields: [
+          { name: "country", kind: "enum", required: false, optionsSource: { source: "countries" } },
+        ],
+      }],
+    };
+
+    const resolve = vi.fn<OptionsResolver>(() => [{ label: "US", value: "us" }]);
+    const { result } = withForm(nestedDef, form => useOptions(form, nestedDef, resolve));
+    await settle();
+
+    expect(resolve).toHaveBeenCalledWith("countries", expect.objectContaining({
+      path: ["address", "country"],
+    }));
+    expect(result.optionsFor(["address", "country"])).toEqual([{ label: "US", value: "us" }]);
+  });
+
+  it("warns instead of loading for an optionsSource inside an array item", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const itemDef: FormDefinition = {
+      id: "options-in-array",
+      fields: [{
+        name: "lines", kind: "array",
+        item: {
+          name: "line", kind: "object",
+          fields: [{ name: "unit", kind: "enum", required: false, optionsSource: { source: "units" } }],
+        },
+      }],
+    };
+
+    const resolve = vi.fn<OptionsResolver>(() => []);
+    withForm(itemDef, form => useOptions(form, itemDef, resolve));
+    await settle();
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("lines.unit"));
+    warn.mockRestore();
+  });
+
   it("reports isLoadingOptions while a load is in flight", async () => {
     const pending = deferred<Option[]>();
     const { result } = withForm(definition, form =>

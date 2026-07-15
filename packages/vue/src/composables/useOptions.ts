@@ -1,5 +1,5 @@
 import { reactive, watch } from "vue";
-import { isDynamicOptionsField, isEmpty, reportError, toPathKey, warn } from "@formblatt/core";
+import { isDynamicOptionsField, isEmpty, isValueField, reportError, toPathKey, walkValueFields, warn } from "@formblatt/core";
 import type { FormDefinition, Option, OptionsResolver, PathKey } from "@formblatt/core";
 import { createLatestOnly } from "../internal/latest-only";
 import {
@@ -44,6 +44,7 @@ export function useOptions(
   if (dynamicFields.length && !resolve) {
     warn("options", "the definition declares optionsSource fields but no OptionsResolver was given — their options will never load");
   }
+  warnArrayItemOptions(definition);
 
   const setOptions = (path: readonly PathKey[], options: Option[]) => {
     optionsByPath[toPathKey(path)] = options;
@@ -109,10 +110,36 @@ export function useOptions(
   };
 }
 
+/** Every dynamic-options enum outside an array, however deeply object-nested. */
 function collectDynamicOptions(definition: FormDefinition): DynamicOptions[] {
-  return definition.fields.filter(isDynamicOptionsField).map(field => ({
-    path: [field.name],
-    source: field.optionsSource.source,
-    dependsOn: field.optionsSource.dependsOn ?? [],
-  }));
+  const collected: DynamicOptions[] = [];
+
+  for (const { field, path } of walkValueFields(definition.fields)) {
+    if (!isDynamicOptionsField(field)) continue;
+    collected.push({
+      path,
+      source: field.optionsSource.source,
+      dependsOn: field.optionsSource.dependsOn ?? [],
+    });
+  }
+
+  return collected;
+}
+
+/** Defense in depth — the lint rejects these, but a definition can bypass `validateDefinition`. */
+function warnArrayItemOptions(definition: FormDefinition): void {
+  for (const field of definition.fields) {
+    if (field.kind !== "array") continue;
+
+    const leaves = field.item.kind === "object"
+      ? walkValueFields(field.item.fields, [field.name])
+      : isValueField(field.item) ? [{ field: field.item, path: [field.name] }] : [];
+
+    for (const entry of leaves) {
+      if (isDynamicOptionsField(entry.field)) {
+        warn("options",
+          `"${entry.path.join(".")}": optionsSource is not supported inside array items — its options will never load`);
+      }
+    }
+  }
 }

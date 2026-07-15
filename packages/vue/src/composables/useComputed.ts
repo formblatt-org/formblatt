@@ -1,5 +1,5 @@
 import { watch } from "vue";
-import { evalExpression, getByPath, isComputedField, reportError, warn } from "@formblatt/core";
+import { evalExpression, getByPath, isComputedField, reportError, walkValueFields, warn } from "@formblatt/core";
 import type {
   ArrayField,
   ComputedResolver,
@@ -89,15 +89,17 @@ export function useComputed(
     );
   };
 
-  for (const field of definition.fields.filter(isComputedField)) {
+  // every leaf outside an array, however deeply object-nested — refs stay absolute
+  for (const { field, path } of walkValueFields(definition.fields)) {
+    if (!isComputedField(field)) continue;
     const spec = field.computed;
 
     if ("expression" in spec) {
-      watchExpression([field.name], spec.expression);
+      watchExpression(path, spec.expression);
     } else if (resolve) {
-      watchSource([field.name], spec);
+      watchSource(path, spec);
     } else {
-      warn("computed", `"${field.name}" declares source "${spec.source}" but no ComputedResolver was given`);
+      warn("computed", `"${path.join(".")}" declares source "${spec.source}" but no ComputedResolver was given`);
     }
   }
 
@@ -106,21 +108,23 @@ export function useComputed(
   }
 
   /**
-   * Per-row computed children, e.g. `lineTotal = qty × price`. One watcher per
-   * computed child observes the WHOLE array — reading it through the store
-   * subscribes to row structure and every row's inputs, so edits, inserts and
-   * removes all refire it. Refs are relative to the row, as in ObjectChecks.
+   * Per-row computed children, e.g. `lineTotal = qty × price`, at any object
+   * depth within the item. One watcher per computed child observes the WHOLE
+   * array — reading it through the store subscribes to row structure and every
+   * row's inputs, so edits, inserts and removes all refire it. Refs are
+   * relative to the row, as in ObjectChecks.
    */
   function watchComputedItems(arrayField: ArrayField) {
     const { item } = arrayField;
     if (item.kind !== "object") return;
 
-    for (const child of item.fields.filter(isComputedField)) {
+    for (const { field: child, path: childPath } of walkValueFields(item.fields)) {
+      if (!isComputedField(child)) continue;
       const spec = child.computed;
 
       if (!("expression" in spec)) {
         warn("computed",
-          `"${arrayField.name}.${child.name}": per-item computed supports expression mode only`);
+          `"${arrayField.name}.${childPath.join(".")}": per-item computed supports expression mode only`);
         continue;
       }
 
@@ -128,7 +132,7 @@ export function useComputed(
         () => readRows(arrayField.name).map(row =>
           evalExpression(spec.expression, path => getByPath(row, path))),
         values => values.forEach((value, index) =>
-          writeComputed([arrayField.name, index, child.name], value)),
+          writeComputed([arrayField.name, index, ...childPath], value)),
         { immediate: true },
       );
     }

@@ -36,6 +36,47 @@ describe("useComputed — expression mode", () => {
   });
 });
 
+describe("useComputed — object-nested fields", () => {
+  const definition: FormDefinition = {
+    id: "computed-nested",
+    fields: [
+      { name: "net", kind: "number", initial: 100 },
+      {
+        name: "invoice", kind: "object", fields: [
+          {
+            name: "gross", kind: "number", required: false,
+            computed: { expression: { op: "mul", args: [{ ref: ["net"] }, { const: 1.19 }] } },
+          },
+          { name: "reference", kind: "string", required: false, computed: { source: "ref", dependsOn: [["net"]] } },
+        ],
+      },
+    ],
+  };
+
+  it("derives an object-nested expression with absolute refs", async () => {
+    const { form } = withForm(definition, form => useComputed(form, definition, noopResolver));
+    await settle();
+
+    expect(readInput(form, ["invoice", "gross"])).toBe(119);
+
+    writeInput(form, ["net"], 200);
+    await settle();
+    expect(readInput(form, ["invoice", "gross"])).toBe(238);
+  });
+
+  it("resolves an object-nested source-mode field with its nested path", async () => {
+    const resolve = vi.fn<ComputedResolver>(() => "INV-1");
+    const { form } = withForm(definition, form => useComputed(form, definition, resolve));
+    await settle();
+
+    expect(resolve).toHaveBeenCalledWith("ref", expect.objectContaining({
+      path: ["invoice", "reference"],
+      deps: { net: 100 },
+    }));
+    expect(readInput(form, ["invoice", "reference"])).toBe("INV-1");
+  });
+});
+
 describe("useComputed — per-item expressions", () => {
   const definition: FormDefinition = {
     id: "computed-items",
@@ -93,6 +134,35 @@ describe("useComputed — per-item expressions", () => {
     await settle();
 
     expect(readInput(form, ["lines", 2, "lineTotal"])).toBeUndefined();
+  });
+
+  it("computes a child nested in an object inside the item, row-relative", async () => {
+    const nestedDef: FormDefinition = {
+      id: "computed-items-nested",
+      fields: [{
+        name: "lines", kind: "array",
+        item: {
+          name: "line", kind: "object",
+          fields: [
+            { name: "qty", kind: "number" },
+            {
+              name: "totals", kind: "object", fields: [
+                {
+                  name: "double", kind: "number", required: false,
+                  computed: { expression: { op: "mul", args: [{ ref: ["qty"] }, { const: 2 }] } },
+                },
+              ],
+            },
+          ],
+        },
+        initial: [{ qty: 4 }],
+      }],
+    };
+
+    const { form } = withForm(nestedDef, form => useComputed(form, nestedDef, noopResolver));
+    await settle();
+
+    expect(readInput(form, ["lines", 0, "totals", "double"])).toBe(8);
   });
 });
 
