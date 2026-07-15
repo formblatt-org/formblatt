@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { validateDefinition } from "~/lib/definition-schema";
 import { migrateDefinition } from "~/lib/definition-migrations";
 import type { FormDefinition } from "~/types";
@@ -91,5 +91,37 @@ describe("validateDefinition", () => {
   it("reports non-object garbage without crashing", () => {
     expect(() => validateDefinition(null)).toThrow();
     expect(() => validateDefinition("nope")).toThrow();
+  });
+
+  it("throws on lint errors — a rule typo no longer passes validation", () => {
+    const def = {
+      id: "x",
+      fields: [{ name: "a", kind: "string", validations: [{ type: "minLenght", value: 8 }] }],
+    };
+    expect(() => validateDefinition(def)).toThrowError(/minLenght/);
+  });
+
+  it("throws on an affect targeting a field inside an array item", () => {
+    const def = {
+      id: "x",
+      fields: [
+        { name: "a", kind: "string" },
+        { name: "lines", kind: "array", item: { name: "line", kind: "object", fields: [{ name: "qty", kind: "number" }] } },
+      ],
+      affects: [{ effect: "hide", when: { path: ["a"], op: "truthy" }, targets: [["lines", 0, "qty"]] }],
+    };
+    expect(() => validateDefinition(def)).toThrowError(/cannot target rows/);
+  });
+
+  it("logs lint warnings without rejecting the definition", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const def = {
+      id: "x",
+      fields: [{ name: "a", kind: "string" }],
+      layout: [{ type: "field", name: "ghost" }],
+    };
+    expect(validateDefinition(def)).toBe(def);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('unknown field "ghost"'));
+    warn.mockRestore();
   });
 });

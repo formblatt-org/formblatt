@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import type { Condition, Expression, FieldDefinition, FormDefinition, LayoutNode } from "../types";
-import { fail } from "./diagnostics";
+import { lintDefinition, type LintIssue } from "./definition-lint";
+import { fail, warn } from "./diagnostics";
 
 /** How many issues an error message lists before summarising the rest as a count. */
 const MAX_REPORTED_ISSUES = 5;
@@ -176,26 +177,53 @@ const _driftGuard: _SchemaMustMatchContract = true;
 void _driftGuard;
 
 /**
- * Validates a raw definition and throws a readable error listing what is
- * wrong and where; returns the input unchanged. Run AFTER `migrateDefinition`
- * — old versions are the migration chain's job, not the schema's.
+ * Validates a raw definition — shape first, then the referential lint
+ * ({@link lintDefinition}) — and throws a readable error listing what is
+ * wrong and where; returns the input unchanged. Lint warnings are logged,
+ * lint errors throw: a definition the engine would silently mishandle must
+ * not reach a form. Run AFTER `migrateDefinition` — old versions are the
+ * migration chain's job, not the schema's.
  */
 export function validateDefinition(definition: unknown): FormDefinition {
   const result = v.safeParse(FormDefinitionSchema, definition);
-  if (result.success) return definition as FormDefinition;
+  if (!result.success) {
+    fail("definition",
+      `invalid form definition "${idOf(definition)}":\n${describeIssues(result.issues)}`);
+  }
 
+  const validated = definition as FormDefinition;
+  const issues = lintDefinition(validated);
+
+  for (const issue of issues.filter(issue => issue.severity === "warning")) {
+    warn("definition", `${issue.location}: ${issue.message}`);
+  }
+
+  const errors = issues.filter(issue => issue.severity === "error");
+  if (errors.length) {
+    fail("definition",
+      `invalid form definition "${idOf(definition)}":\n${describeLintIssues(errors)}`);
+  }
+
+  return validated;
+}
+
+function idOf(definition: unknown): string {
   const id = (definition as { id?: unknown } | null)?.id;
-  fail("definition",
-    `invalid form definition "${typeof id === "string" ? id : "?"}":\n${describeIssues(result.issues)}`);
+  return typeof id === "string" ? id : "?";
 }
 
 /** The first few issues as readable "- path: message" lines, with a count of the rest. */
 function describeIssues(issues: readonly v.BaseIssue<unknown>[]): string {
-  const shown = issues
-    .slice(0, MAX_REPORTED_ISSUES)
-    .map(issue => `- ${v.getDotPath(issue) ?? "(root)"}: ${issue.message}`)
-    .join("\n");
+  return capIssueLines(issues.map(issue => `- ${v.getDotPath(issue) ?? "(root)"}: ${issue.message}`));
+}
 
-  const remaining = issues.length - MAX_REPORTED_ISSUES;
+/** Same shape for lint findings: "- location: message" lines. */
+function describeLintIssues(issues: readonly LintIssue[]): string {
+  return capIssueLines(issues.map(issue => `- ${issue.location}: ${issue.message}`));
+}
+
+function capIssueLines(lines: readonly string[]): string {
+  const shown = lines.slice(0, MAX_REPORTED_ISSUES).join("\n");
+  const remaining = lines.length - MAX_REPORTED_ISSUES;
   return remaining > 0 ? `${shown}\n… and ${remaining} more issue(s)` : shown;
 }
