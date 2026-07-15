@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
+import { check } from "valibot";
 import type { FormDefinition, PopulateResolver } from "@formblatt/core";
 import DynamicForm from "../../src/components/DynamicForm.vue";
 import DynamicField from "../../src/components/DynamicField.vue";
@@ -148,6 +149,58 @@ describe("DynamicForm submit", () => {
     await wrapper.find("form").trigger("submit");
     await settle(5);
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs remote validation through the resolver and blocks an invalid submit", async () => {
+    const definition: FormDefinition = {
+      id: "form-remote",
+      fields: [
+        { name: "username", kind: "string", validations: [{ type: "remote", value: "usernameFree", message: "Taken" }] },
+      ],
+    };
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, {
+      props: {
+        definition,
+        onSubmit,
+        resolveValidation: async (_source, value) => value !== "ada",
+      },
+    });
+
+    await wrapper.find("input").setValue("ada");
+    await wrapper.find("form").trigger("submit");
+    await settle(6);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(wrapper.find(".field-errors").text()).toContain("Taken");
+
+    await wrapper.find("input").setValue("grace");
+    await wrapper.find("form").trigger("submit");
+    await settle(6);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts and applies host-registered validation rules", async () => {
+    const definition: FormDefinition = {
+      id: "form-custom-rule",
+      fields: [
+        { name: "plate", kind: "string", validations: [{ type: "licensePlate", message: "Not a plate" }] },
+      ],
+    };
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, {
+      props: {
+        definition,
+        onSubmit,
+        // also proves the lint accepts the custom type — validateDefinition would throw otherwise
+        rules: { licensePlate: rule => check(value => /^[A-Z]+-\d+$/.test(String(value)), rule.message) },
+      },
+    });
+
+    await wrapper.find("input").setValue("nope");
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(wrapper.find(".field-errors").text()).toContain("Not a plate");
   });
 
   it("focuses the first invalid control after a failed submit", async () => {

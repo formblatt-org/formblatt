@@ -1,24 +1,30 @@
 import * as v from "valibot";
-import type { GenericSchema } from "valibot";
+import type { GenericSchema, GenericSchemaAsync } from "valibot";
 import type {
   FieldDefinition,
   FormDefinition,
   ObjectCheck,
   ObjectField,
   PathKey,
+  ValidationResolver,
   ValidationRule,
   ValueField,
 } from "../types";
 import { conditionalRequiredFields } from "./affect";
 import { evaluate, isEmpty, type ValueReader } from "./condition";
+import { reportError, warn } from "./diagnostics";
 import { isValueField } from "./field";
 import { getByPath, toPathKey } from "./path";
 
 /** The shape a form's data takes: field names at the top level. */
 type FormData = Record<string, unknown>;
 
-/** The Valibot schema a {@link FormDefinition} compiles to. */
-export type FormSchema = GenericSchema<FormData>;
+/**
+ * The Valibot schema a {@link FormDefinition} compiles to — async when the
+ * definition declares `remote` validation rules, sync otherwise. Parse with
+ * `safeParseAsync`, which handles both.
+ */
+export type FormSchema = GenericSchema<FormData> | GenericSchemaAsync<FormData>;
 
 /**
  * Path keys ({@link toPathKey}) of every field a visibility affect targets —
@@ -33,18 +39,39 @@ export interface BuildFormSchemaOptions {
    * the i18n hook. Defaults to English ("This field is required").
    */
   requiredMessage?: string;
+  /**
+   * Host-defined validation rules, addressable from any field kind by their
+   * key. Looked up AFTER the built-ins, so they cannot shadow one. Remember to
+   * pass the keys to `validateDefinition` as `customRuleTypes`, or the lint
+   * rejects definitions using them.
+   */
+  rules?: Record<string, ValidationFactory>;
+  /**
+   * Handles `remote` validation rules (username-taken, VAT lookup …). Without
+   * it such rules are skipped with a warning. See {@link ValidationResolver}.
+   */
+  validationResolver?: ValidationResolver;
 }
 
 /** What every schema-building step needs — threaded instead of N loose params. */
 interface BuildContext {
   conditionalPaths: ConditionalPaths;
   requiredMessage: string;
+  kit: SchemaKit;
+  customRules: Record<string, ValidationFactory>;
+  validationResolver?: ValidationResolver;
 }
 
 type ValidationAction = v.GenericPipeAction<any, any, any>;
-type ValidationFactory = (rule: ValidationRule) => ValidationAction;
+
+/**
+ * Builds the valibot action for one {@link ValidationRule} — the shape of the
+ * built-in registries and of host-defined rules (`BuildFormSchemaOptions.rules`).
+ */
+export type ValidationFactory = (rule: ValidationRule) => ValidationAction;
 
 const DEFAULT_REQUIRED_MESSAGE = "This field is required";
+const DEFAULT_REMOTE_MESSAGE = "Invalid value";
 
 const STRING_VALIDATIONS: Record<string, ValidationFactory> = {
   email: rule => v.email(rule.message),
@@ -77,32 +104,53 @@ const DATE_VALIDATIONS: Record<string, ValidationFactory> = {
 
 /**
  * The validation rule types the builder implements per field kind — the
- * definition lint checks incoming rules against this. Enums validate through
- * their options / `nonEmpty` and support no extra rules.
+ * definition lint checks incoming rules against this. `remote` (host-resolved,
+ * possibly async) works on every kind; enums otherwise validate through their
+ * options / `nonEmpty` and support no extra built-ins.
  */
 export const KNOWN_VALIDATION_TYPES: Record<ValueField["kind"], readonly string[]> = {
-  string: Object.keys(STRING_VALIDATIONS),
-  number: Object.keys(NUMBER_VALIDATIONS),
-  boolean: Object.keys(BOOLEAN_VALIDATIONS),
-  date: Object.keys(DATE_VALIDATIONS),
-  enum: [],
+  string: [...Object.keys(STRING_VALIDATIONS), "remote"],
+  number: [...Object.keys(NUMBER_VALIDATIONS), "remote"],
+  boolean: [...Object.keys(BOOLEAN_VALIDATIONS), "remote"],
+  date: [...Object.keys(DATE_VALIDATIONS), "remote"],
+  enum: ["remote"],
 };
 
 /**
- * Valibot types `pipe` as a tuple of statically known actions; ours are
- * assembled at runtime from the definition. The cast lives here, once.
+ * The valibot constructors one build uses — the `*Async` variants when the
+ * definition declares any `remote` rule, since an async action needs an async
+ * pipe and that asyncness propagates up to the root. Everything internal is
+ * typed as the sync `GenericSchema` (valibot types `pipe`/`forward` from
+ * statically known shapes, which runtime-built schemas cannot express); the
+ * public {@link FormSchema} is the honest union. The casts live here, once.
  */
-const pipe = (schema: GenericSchema, ...actions: unknown[]): GenericSchema =>
-  (v.pipe as any)(schema, ...actions);
+interface SchemaKit {
+  object(entries: Record<string, GenericSchema>): GenericSchema;
+  array(item: GenericSchema): GenericSchema;
+  optional(schema: GenericSchema): GenericSchema;
+  nullable(schema: GenericSchema): GenericSchema;
+  pipe(schema: GenericSchema, ...actions: unknown[]): GenericSchema;
+  /** Forwards an action's error to the field at `path`, so it renders under that field. */
+  forward(action: ValidationAction, path: readonly PathKey[]): unknown;
+}
 
-/**
- * Forwards an action's error to the field at `path` so it renders under that
- * field. Valibot derives legal forward paths from the schema's static shape,
- * which cannot express our runtime-built paths — as with {@link pipe}, the
- * cast is contained here.
- */
-const forwardTo = (action: ValidationAction, path: readonly PathKey[]): unknown =>
-  v.forward(action as any, path as any);
+const SYNC_KIT: SchemaKit = {
+  object: entries => v.object(entries),
+  array: item => v.array(item),
+  optional: schema => v.optional(schema),
+  nullable: schema => v.nullable(schema),
+  pipe: (schema, ...actions) => (v.pipe as any)(schema, ...actions),
+  forward: (action, path) => v.forward(action as any, path as any),
+};
+
+const ASYNC_KIT: SchemaKit = {
+  object: entries => v.objectAsync(entries) as unknown as GenericSchema,
+  array: item => v.arrayAsync(item) as unknown as GenericSchema,
+  optional: schema => v.optionalAsync(schema) as unknown as GenericSchema,
+  nullable: schema => v.nullableAsync(schema) as unknown as GenericSchema,
+  pipe: (schema, ...actions) => (v.pipeAsync as any)(schema, ...actions),
+  forward: (action, path) => v.forwardAsync(action as any, path as any),
+};
 
 /**
  * Compiles a form definition into the Valibot schema that validates its data.
@@ -119,9 +167,21 @@ export function buildFormSchema(
   const context: BuildContext = {
     conditionalPaths: collectConditionalPaths(definition),
     requiredMessage: options?.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE,
+    kit: hasRemoteRules(definition.fields) ? ASYNC_KIT : SYNC_KIT,
+    customRules: options?.rules ?? {},
+    validationResolver: options?.validationResolver,
   };
-  const root = v.object(buildEntries(definition.fields, [], context));
-  return withRequiredWhenVisible(root, definition, context.requiredMessage) as FormSchema;
+  const root = context.kit.object(buildEntries(definition.fields, [], context));
+  return withRequiredWhenVisible(root, definition, context) as FormSchema;
+}
+
+/** Whether any field declares a `remote` rule — the whole schema goes async then. */
+function hasRemoteRules(fields: readonly FieldDefinition[]): boolean {
+  return fields.some(field => {
+    if (field.kind === "object") return hasRemoteRules(field.fields);
+    if (field.kind === "array") return hasRemoteRules([field.item]);
+    return !!field.validations?.some(rule => rule.type === "remote");
+  });
 }
 
 /** Collects the targets of every visibility affect; `populate` targets nothing. */
@@ -155,8 +215,8 @@ function buildField(
   const enforcesRequired = enforcesOwnRequired(field, path, context.conditionalPaths);
 
   let schema = buildKindSchema(field, path, context, enforcesRequired);
-  if (field.nullable) schema = v.nullable(schema);
-  if (!enforcesRequired) schema = v.optional(schema);
+  if (field.nullable) schema = context.kit.nullable(schema);
+  if (!enforcesRequired) schema = context.kit.optional(schema);
   return schema;
 }
 
@@ -193,16 +253,21 @@ function buildKindSchema(
     case "date": return buildDateSchema(field, required, context);
     case "object": return buildObjectSchema(field, path, context);
     // every row shares one item schema, so the item's path carries no index
-    case "array": return v.array(buildField(field.item, path, context));
+    case "array": return context.kit.array(buildField(field.item, path, context));
   }
 }
 
-/** A required string must be non-empty; `""` reports as missing, not as a length error. */
+/**
+ * A required string must be non-empty; `""` reports as missing (via the
+ * prepended `nonEmpty`), and so does `undefined` — the *type* issue carries
+ * the required message too, like every other kind.
+ */
 function buildStringSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const validations = required
     ? [{ type: "nonEmpty", message: requiredMessageOf(field, context) }, ...(field.validations ?? [])]
     : field.validations;
-  return withValidations(v.string(), validations, STRING_VALIDATIONS);
+  const base = required ? v.string(requiredMessageOf(field, context)) : v.string();
+  return withValidations(base, validations, STRING_VALIDATIONS, context);
 }
 
 /**
@@ -212,7 +277,7 @@ function buildStringSchema(field: ValueField, required: boolean, context: BuildC
  */
 function buildNumberSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const base = required ? v.number(requiredMessageOf(field, context)) : v.number();
-  return withValidations(base, field.validations, NUMBER_VALIDATIONS);
+  return withValidations(base, field.validations, NUMBER_VALIDATIONS, context);
 }
 
 /**
@@ -224,10 +289,11 @@ function buildNumberSchema(field: ValueField, required: boolean, context: BuildC
 function buildEnumSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const message = required ? requiredMessageOf(field, context) : undefined;
 
-  if (field.optionsSource) {
-    return message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string();
-  }
-  return v.picklist((field.options ?? []).map(option => option.value), message);
+  const base = field.optionsSource
+    ? (message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string())
+    : v.picklist((field.options ?? []).map(option => option.value), message);
+  // no enum-specific registry, but custom and remote rules still apply
+  return withValidations(base, field.validations, {}, context);
 }
 
 /**
@@ -237,7 +303,7 @@ function buildEnumSchema(field: ValueField, required: boolean, context: BuildCon
  */
 function buildBooleanSchema(field: ValueField, required: boolean, context: BuildContext): GenericSchema {
   const base = required ? v.boolean(requiredMessageOf(field, context)) : v.boolean();
-  return withValidations(base, field.validations, BOOLEAN_VALIDATIONS);
+  return withValidations(base, field.validations, BOOLEAN_VALIDATIONS, context);
 }
 
 /**
@@ -249,7 +315,7 @@ function buildDateSchema(field: ValueField, required: boolean, context: BuildCon
   const base = required
     ? v.pipe(v.string(requiredMessageOf(field, context)), v.isoDate())
     : v.pipe(v.string(), v.isoDate());
-  return withValidations(base, field.validations, DATE_VALIDATIONS);
+  return withValidations(base, field.validations, DATE_VALIDATIONS, context);
 }
 
 /** Builds an object's entries, then applies its cross-field {@link ObjectCheck}s. */
@@ -258,9 +324,9 @@ function buildObjectSchema(
   path: readonly PathKey[],
   context: BuildContext,
 ): GenericSchema {
-  const entries: GenericSchema = v.object(buildEntries(field.fields, path, context));
+  const entries: GenericSchema = context.kit.object(buildEntries(field.fields, path, context));
   return (field.checks ?? []).reduce(
-    (schema, check) => pipe(schema, toCheckAction(check)),
+    (schema, check) => context.kit.pipe(schema, toCheckAction(check, context.kit)),
     entries,
   );
 }
@@ -269,14 +335,14 @@ function buildObjectSchema(
  * Compiles one cross-field check. Condition paths resolve relative to the
  * object being checked, so on an array item the same action runs per row.
  */
-function toCheckAction(check: ObjectCheck): unknown {
+function toCheckAction(check: ObjectCheck, kit: SchemaKit): unknown {
   const passes = (data: FormData) => {
     const read: ValueReader = path => getByPath(data, path);
     return !evaluate(check.when, read) || evaluate(check.assert, read);
   };
 
   const action = v.check(passes, check.error);
-  return check.target ? forwardTo(action, [check.target]) : action;
+  return check.target ? kit.forward(action, [check.target]) : action;
 }
 
 /**
@@ -287,7 +353,7 @@ function toCheckAction(check: ObjectCheck): unknown {
 function withRequiredWhenVisible(
   root: GenericSchema,
   definition: FormDefinition,
-  requiredMessage: string,
+  context: BuildContext,
 ): GenericSchema {
   return conditionalRequiredFields(definition).reduce((schema, field) => {
     const filledWhenVisible = (data: FormData) => {
@@ -296,22 +362,65 @@ function withRequiredWhenVisible(
       return !visible || !isEmpty(getByPath(data, field.path));
     };
 
-    const action = v.check(filledWhenVisible, field.requiredMessage ?? requiredMessage);
-    return pipe(schema, forwardTo(action, field.path));
+    const action = v.check(filledWhenVisible, field.requiredMessage ?? context.requiredMessage);
+    return context.kit.pipe(schema, context.kit.forward(action, field.path));
   }, root);
 }
 
-/** Appends the validations the registry knows about; unknown rule types are ignored. */
+/**
+ * Appends the validations the registries know about: built-ins first, then
+ * the host's custom rules, `remote` routed to the resolver. Unknown rule
+ * types are ignored — the lint rejects them upfront.
+ */
 function withValidations(
   base: GenericSchema,
   rules: readonly ValidationRule[] = [],
   registry: Record<string, ValidationFactory>,
+  context: BuildContext,
 ): GenericSchema {
   const actions = rules
-    .map(rule => registry[rule.type]?.(rule))
+    .map(rule => toValidationAction(rule, registry, context))
     .filter((action): action is ValidationAction => !!action);
 
-  return actions.length ? pipe(base, ...actions) : base;
+  return actions.length ? context.kit.pipe(base, ...actions) : base;
+}
+
+function toValidationAction(
+  rule: ValidationRule,
+  registry: Record<string, ValidationFactory>,
+  context: BuildContext,
+): ValidationAction | undefined {
+  if (rule.type === "remote") return toRemoteAction(rule, context);
+
+  const factory = registry[rule.type] ?? context.customRules[rule.type];
+  return factory?.(rule);
+}
+
+/**
+ * A host-resolved, possibly async check — `rule.value` is the routing key.
+ * Empty values pass (that is `required`'s job), and a rejected lookup passes
+ * too, with the failure reported: availability must not block submits.
+ */
+function toRemoteAction(rule: ValidationRule, context: BuildContext): ValidationAction | undefined {
+  const resolve = context.validationResolver;
+  const source = String(rule.value);
+
+  if (!resolve) {
+    warn("definition", `remote rule "${source}" has no ValidationResolver — skipped`);
+    return undefined;
+  }
+
+  return v.rawCheckAsync(async ({ dataset, addIssue }) => {
+    if (!dataset.typed || isEmpty(dataset.value)) return;
+
+    try {
+      const verdict = await resolve(source, dataset.value);
+      if (verdict === true || verdict === undefined) return;
+      addIssue({ message: typeof verdict === "string" ? verdict : rule.message ?? DEFAULT_REMOTE_MESSAGE });
+    } catch (cause) {
+      reportError("definition", `remote validation "${source}" failed — treated as valid`, cause);
+    }
+  }) as unknown as ValidationAction;
 }
 
 const requiredMessageOf = (field: FieldDefinition, context: BuildContext) =>

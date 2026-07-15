@@ -20,6 +20,8 @@ import type {
   FormDefinition,
   OptionsResolver,
   PopulateResolver,
+  ValidationFactory,
+  ValidationResolver,
   ValueField,
 } from "@formblatt/core";
 import {
@@ -53,6 +55,10 @@ const props = defineProps<{
   resolveOptions?: OptionsResolver;
   /** Required only when the definition declares source-mode `computed` fields. */
   resolveComputed?: ComputedResolver;
+  /** Required only when the definition declares `remote` validation rules. */
+  resolveValidation?: ValidationResolver;
+  /** Host-defined validation rules, addressable from any field's `validations` by key. */
+  rules?: Record<string, ValidationFactory>;
   /** `"touched"` hides a field's errors until it is focused or a submit is attempted. Default: `"always"`. */
   errorDisplay?: ErrorDisplay;
   /** Label of the default submit button. Ignored when the default slot is replaced. */
@@ -72,11 +78,17 @@ const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 
 // Migrated and validated once at setup: a changed definition prop needs a :key
 // remount anyway, since useForm builds its store only once.
-const definition = validateDefinition(migrateDefinition(props.definition));
+const definition = validateDefinition(migrateDefinition(props.definition), {
+  customRuleTypes: props.rules && Object.keys(props.rules),
+});
 
 const form = useForm({
   // the schema is built once, so a locale change to `text.requiredMessage` needs a :key remount
-  schema: buildFormSchema(definition, { requiredMessage: text.value.requiredMessage }),
+  schema: buildFormSchema(definition, {
+    requiredMessage: text.value.requiredMessage,
+    rules: props.rules,
+    validationResolver: props.resolveValidation,
+  }),
   initialInput: buildInitialInput(definition, props.initialData),
   validate: definition.validate,
   revalidate: definition.revalidate,

@@ -7,10 +7,13 @@ import type { Computed } from "./computed";
  * `regex`; numbers: `minValue`, `maxValue`, `integer`; booleans: `isTrue`
  * (must be checked — `required` only demands presence, and `false` is
  * present); dates: `minValue`, `maxValue` (ISO strings, compared in date
- * order). Enums validate through their options and support no extra rules.
- * The builder ignores unknown types, so a typo weakens validation without an
- * error — run `validateDefinition` on served definitions; its lint rejects
- * rule types the kind does not implement.
+ * order). Every kind additionally accepts `remote` (host-resolved through a
+ * {@link ValidationResolver}, `value` is the routing key) and any rule the
+ * host registers via `buildFormSchema`'s `rules` option. Enums otherwise
+ * validate through their options and support no extra built-ins. The builder
+ * ignores unknown types, so a typo weakens validation without an error — run
+ * `validateDefinition` on served definitions; its lint rejects rule types
+ * nothing implements.
  */
 export interface ValidationRule {
   /** Registry key of the rule, e.g. `"minLength"`. */
@@ -20,6 +23,21 @@ export interface ValidationRule {
   /** Overrides the rule's default error message. */
   message?: string;
 }
+
+/**
+ * Host-implemented handler for `remote` validation rules — the async check a
+ * schema cannot express (username-taken, VAT lookup). Called with the rule's
+ * routing key (`rule.value`) and the field's current value; never called for
+ * empty values (that is `required`'s job). Return `true`/`undefined` for
+ * valid, `false` for invalid with the rule's message, or a string to use as
+ * the message. A rejected promise is reported and treated as valid —
+ * availability must not block submits. Hosts should cache: the check runs on
+ * every validation pass of the form.
+ */
+export type ValidationResolver = (
+  source: string,
+  value: unknown,
+) => boolean | string | undefined | Promise<boolean | string | undefined>;
 
 /** Properties shared by every field kind. */
 interface BaseField {

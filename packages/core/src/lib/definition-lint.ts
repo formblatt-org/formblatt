@@ -23,6 +23,15 @@ export interface LintIssue {
   message: string;
 }
 
+/** Host-tunable knobs of {@link lintDefinition} / `validateDefinition`. */
+export interface LintOptions {
+  /**
+   * Rule types the host registers with `buildFormSchema`'s `rules` option —
+   * accepted on every field kind in addition to the built-ins.
+   */
+  customRuleTypes?: readonly string[];
+}
+
 /**
  * Checks a structurally valid definition for everything the shape schema
  * cannot see: referential integrity (affect targets, condition paths,
@@ -30,10 +39,10 @@ export interface LintIssue {
  * implements, and constructs the engine does not support. `validateDefinition`
  * runs this automatically — errors throw there, warnings are logged.
  */
-export function lintDefinition(definition: FormDefinition): LintIssue[] {
+export function lintDefinition(definition: FormDefinition, options?: LintOptions): LintIssue[] {
   const issues: LintIssue[] = [];
 
-  lintFields(definition, definition.fields, "fields", false, issues);
+  lintFields(definition, definition.fields, "fields", false, issues, options?.customRuleTypes ?? []);
   lintAffects(definition, issues);
   lintLayout(definition, issues);
 
@@ -148,6 +157,7 @@ function lintFields(
   location: string,
   inArrayItem: boolean,
   issues: LintIssue[],
+  customRuleTypes: readonly string[],
 ): void {
   const seen = new Set<string>();
 
@@ -161,7 +171,7 @@ function lintFields(
     if (seen.has(field.name)) error(issues, here, `duplicate field name "${field.name}" among siblings`);
     seen.add(field.name);
 
-    lintValidations(field, here, issues);
+    lintValidations(field, here, issues, customRuleTypes);
 
     switch (field.kind) {
       case "object":
@@ -169,7 +179,7 @@ function lintFields(
           error(issues, here, "hidden/disabled on an object field has no rendering effect — set it on its leaf fields");
         }
         lintObjectChecks(field, here, issues);
-        lintFields(definition, field.fields, here, inArrayItem, issues);
+        lintFields(definition, field.fields, here, inArrayItem, issues, customRuleTypes);
         break;
 
       case "array":
@@ -179,7 +189,7 @@ function lintFields(
         if (location !== "fields") {
           warning(issues, here, "nested arrays validate but the built-in components cannot render them");
         }
-        lintFields(definition, [field.item], `${here}.item`, true, issues);
+        lintFields(definition, [field.item], `${here}.item`, true, issues, customRuleTypes);
         break;
 
       default:
@@ -188,7 +198,12 @@ function lintFields(
   }
 }
 
-function lintValidations(field: FieldDefinition, location: string, issues: LintIssue[]): void {
+function lintValidations(
+  field: FieldDefinition,
+  location: string,
+  issues: LintIssue[],
+  customRuleTypes: readonly string[],
+): void {
   if (!field.validations?.length) return;
 
   if (field.kind === "object" || field.kind === "array") {
@@ -198,11 +213,13 @@ function lintValidations(field: FieldDefinition, location: string, issues: LintI
 
   const known = KNOWN_VALIDATION_TYPES[field.kind];
   for (const rule of field.validations) {
-    if (known.includes(rule.type)) continue;
+    if (rule.type === "remote" && typeof rule.value !== "string") {
+      error(issues, location, "remote rules route by `value` — it must name the resolver source");
+      continue;
+    }
+    if (known.includes(rule.type) || customRuleTypes.includes(rule.type)) continue;
     error(issues, location,
-      known.length
-        ? `unknown validation "${rule.type}" for kind "${field.kind}" — the builder would silently drop it (known: ${known.join(", ")})`
-        : `kind "${field.kind}" supports no validation rules — "${rule.type}" would be silently dropped`);
+      `unknown validation "${rule.type}" for kind "${field.kind}" — the builder would silently drop it (known: ${known.join(", ")})`);
   }
 }
 

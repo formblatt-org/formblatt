@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import type { Condition, Expression, FieldDefinition, FormDefinition, LayoutNode } from "../types";
-import { lintDefinition, type LintIssue } from "./definition-lint";
+import { lintDefinition, type LintIssue, type LintOptions } from "./definition-lint";
 import { fail, warn } from "./diagnostics";
 
 /** How many issues an error message lists before summarising the rest as a count. */
@@ -184,7 +184,7 @@ void _driftGuard;
  * not reach a form. Run AFTER `migrateDefinition` — old versions are the
  * migration chain's job, not the schema's.
  */
-export function validateDefinition(definition: unknown): FormDefinition {
+export function validateDefinition(definition: unknown, options?: LintOptions): FormDefinition {
   const result = v.safeParse(FormDefinitionSchema, definition);
   if (!result.success) {
     fail("definition",
@@ -192,7 +192,7 @@ export function validateDefinition(definition: unknown): FormDefinition {
   }
 
   const validated = definition as FormDefinition;
-  const issues = lintDefinition(validated);
+  const issues = lintDefinition(validated, options);
 
   for (const issue of issues.filter(issue => issue.severity === "warning")) {
     warn("definition", `${issue.location}: ${issue.message}`);

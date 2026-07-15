@@ -80,8 +80,30 @@ describe("field-level checks", () => {
     const errors = lint(def, "error");
     expect(errors).toEqual([
       expect.stringContaining('unknown validation "minLenght" for kind "string"'),
-      expect.stringContaining('kind "enum" supports no validation rules'),
+      expect.stringContaining('unknown validation "minLength" for kind "enum"'),
     ]);
+  });
+
+  it("accepts host-registered rule types passed as customRuleTypes", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [{ name: "plate", kind: "string", validations: [{ type: "licensePlate" }] }],
+    };
+    expect(lintDefinition(def, { customRuleTypes: ["licensePlate"] })).toEqual([]);
+    expect(lintDefinition(def)).toHaveLength(1);
+  });
+
+  it("accepts remote rules with a source, rejects them without one", () => {
+    const good: FormDefinition = {
+      id: "x",
+      fields: [{ name: "u", kind: "string", validations: [{ type: "remote", value: "usernameFree" }] }],
+    };
+    const bad: FormDefinition = {
+      id: "x",
+      fields: [{ name: "u", kind: "string", validations: [{ type: "remote" }] }],
+    };
+    expect(lint(good)).toEqual([]);
+    expect(lint(bad, "error")).toEqual([expect.stringContaining("must name the resolver source")]);
   });
 
   it("rejects validations on object/array fields (the builder ignores them)", () => {

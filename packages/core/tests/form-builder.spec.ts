@@ -1,11 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as v from "valibot";
 import { buildFormSchema, buildInitialInput } from "~/lib/form-builder";
 import type { FormDefinition } from "~/types";
 
 /** same formatter the ad-hoc nitro test routes used */
 function run(schema: ReturnType<typeof buildFormSchema>, input: unknown): "valid" | string[] {
-  const r = v.safeParse(schema, input);
+  // these fixtures are remote-free, so the schema is the sync variant
+  const r = v.safeParse(schema as v.GenericSchema<Record<string, unknown>>, input);
   return r.success ? "valid" : r.issues.map(i => `${i.message} @ ${i.path?.map(p => (p as any).key).join(".")}`);
 }
 
@@ -331,6 +332,97 @@ describe("hidden and disabled fields never enforce their required check", () => 
     // never reveals a hidden field — so it must not be re-required either
     expect(run(hideOnlySchema, { email: "anything" })).toBe("valid");
     expect(run(hideOnlySchema, { email: "x" })).toBe("valid");
+  });
+});
+
+describe("custom validation rules", () => {
+  const def: FormDefinition = {
+    id: "custom-rules",
+    fields: [
+      { name: "plate", kind: "string", required: false, validations: [{ type: "licensePlate", message: "Not a plate" }] },
+    ],
+  };
+
+  it("applies a host-registered rule like a built-in", () => {
+    const schema = buildFormSchema(def, {
+      rules: { licensePlate: rule => v.check(value => /^[A-Z]{1,3}-\d+$/.test(String(value)), rule.message) },
+    });
+
+    expect(run(schema, { plate: "B-1234" })).toBe("valid");
+    expect(run(schema, { plate: "nope" })).toEqual(["Not a plate @ plate"]);
+  });
+
+  it("never lets a custom rule shadow a built-in", () => {
+    const shadowDef: FormDefinition = {
+      id: "shadow",
+      fields: [{ name: "mail", kind: "string", required: false, validations: [{ type: "email", message: "Bad mail" }] }],
+    };
+    const schema = buildFormSchema(shadowDef, {
+      rules: { email: () => v.check(() => true) }, // would accept anything
+    });
+
+    expect(run(schema, { mail: "not-an-email" })).toEqual(["Bad mail @ mail"]);
+  });
+});
+
+describe("remote validation rules", () => {
+  const def: FormDefinition = {
+    id: "remote-rules",
+    fields: [
+      { name: "username", kind: "string", validations: [{ type: "remote", value: "usernameFree", message: "Taken" }] },
+    ],
+  };
+
+  async function runAsync(schema: ReturnType<typeof buildFormSchema>, input: unknown): Promise<"valid" | string[]> {
+    const r = await v.safeParseAsync(schema, input);
+    return r.success ? "valid" : r.issues.map(i => `${i.message} @ ${i.path?.map(p => (p as any).key).join(".")}`);
+  }
+
+  it("routes the value to the resolver and reports the rule message on false", async () => {
+    const schema = buildFormSchema(def, {
+      validationResolver: async (source, value) => source === "usernameFree" && value !== "ada",
+    });
+
+    expect(await runAsync(schema, { username: "grace" })).toBe("valid");
+    expect(await runAsync(schema, { username: "ada" })).toEqual(["Taken @ username"]);
+  });
+
+  it("uses a string verdict as the message", async () => {
+    const schema = buildFormSchema(def, {
+      validationResolver: () => "Reserved for staff",
+    });
+
+    expect(await runAsync(schema, { username: "root" })).toEqual(["Reserved for staff @ username"]);
+  });
+
+  it("never calls the resolver for an empty value — that is required's job", async () => {
+    const calls: unknown[] = [];
+    const schema = buildFormSchema(def, {
+      validationResolver: (_source, value) => { calls.push(value); return false; },
+    });
+
+    expect(await runAsync(schema, { username: undefined })).toEqual(["This field is required @ username"]);
+    expect(calls).toEqual([]);
+  });
+
+  it("treats a rejected lookup as valid instead of blocking submit", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const schema = buildFormSchema(def, {
+      validationResolver: () => Promise.reject(new Error("service down")),
+    });
+
+    expect(await runAsync(schema, { username: "grace" })).toBe("valid");
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("skips remote rules with a warning when no resolver is given", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const schema = buildFormSchema(def);
+
+    expect(await runAsync(schema, { username: "anything" })).toBe("valid");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("usernameFree"));
+    warnSpy.mockRestore();
   });
 });
 
