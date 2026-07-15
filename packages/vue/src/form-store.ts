@@ -1,6 +1,8 @@
 import {
+  getDirtyInput,
   getInput,
   insert,
+  isDirty,
   move,
   remove,
   reset,
@@ -64,6 +66,20 @@ export function resetField(form: DynamicFormStore, path: readonly PathKey[]): vo
 /** Re-runs validation — needed after a programmatic write that may have cleared errors. */
 export function revalidate(form: DynamicFormStore): void {
   validate(form);
+}
+
+/**
+ * Whether any field's value differs from the initial input — the
+ * unsaved-changes signal. Reactive when read from a render context or
+ * computed; a populate revert or reset makes it `false` again.
+ */
+export function isFormDirty(form: DynamicFormStore): boolean {
+  return isDirty(form);
+}
+
+/** Only the values that differ from the initial input — e.g. a PATCH payload. */
+export function readDirtyInput(form: DynamicFormStore): unknown {
+  return getDirtyInput(form);
 }
 
 /** Appends a row to the array field at `path`. */

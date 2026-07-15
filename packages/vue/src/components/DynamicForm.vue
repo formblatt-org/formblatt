@@ -21,7 +21,7 @@ import type {
   ValueField,
 } from "@formblatt/core";
 import { DEFAULT_UI_TEXT, FormContextKey, type ErrorDisplay, type ResolvedSection, type UiText } from "../form-context";
-import { createReader } from "../form-store";
+import { createReader, isFormDirty } from "../form-store";
 import { useCoverageWarnings } from "../internal/coverage";
 import { useAffects } from "../composables/useAffects";
 import { usePopulate } from "../composables/usePopulate";
@@ -89,6 +89,9 @@ const { register, unregister } = useCoverageWarnings(definition);
 const isBusy = computed(() =>
   isPopulating.value || isComputingAny.value || isLoadingAnyOptions.value);
 
+/** Unsaved changes — for leave guards and disabled save buttons. */
+const isDirty = computed(() => isFormDirty(form));
+
 const resolveField = (name: string): ValueField | undefined => {
   const field = fieldsByName.value[name];
   if (!field) {
@@ -144,7 +147,7 @@ provide(FormContextKey, {
   unregister,
 })
 
-defineExpose({ form, isPopulating, isBusy })
+defineExpose({ form, isPopulating, isBusy, isDirty })
 </script>
 
 <template>
@@ -164,6 +167,7 @@ defineExpose({ form, isPopulating, isBusy })
       <slot
         :form="form"
         :is-valid="form.isValid"
+        :is-dirty="isDirty"
         :is-submitting="form.isSubmitting"
         :is-populating="isPopulating"
         :is-busy="isBusy"
