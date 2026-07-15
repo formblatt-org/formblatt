@@ -6,3 +6,4 @@ export * from "./lib/expression";
 export * from "./lib/affect";
 export * from "./lib/layout";
 export * from "./lib/field";
+export * from "./lib/form-builder";

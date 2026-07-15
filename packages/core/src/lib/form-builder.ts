@@ -1,0 +1,270 @@
+import * as v from "valibot";
+import type { GenericSchema } from "valibot";
+import type {
+  FieldDefinition,
+  FormDefinition,
+  ObjectCheck,
+  ObjectField,
+  PathKey,
+  ValidationRule,
+  ValueField,
+} from "../types";
+import { conditionalRequiredFields } from "./affect";
+import { evaluate, isEmpty, type ValueReader } from "./condition";
+import { isValueField } from "./field";
+import { getByPath, toPathKey } from "./path";
+
+/** The shape a form's data takes: field names at the top level. */
+type FormData = Record<string, unknown>;
+
+/** The Valibot schema a {@link FormDefinition} compiles to. */
+export type FormSchema = GenericSchema<FormData>;
+
+/**
+ * Path keys ({@link toPathKey}) of every field a visibility affect targets —
+ * optional in their own schema, re-required by the required-when-visible pass.
+ */
+type ConditionalPaths = ReadonlySet<string>;
+
+type ValidationAction = v.GenericPipeAction<any, any, any>;
+type ValidationFactory = (rule: ValidationRule) => ValidationAction;
+
+const DEFAULT_REQUIRED_MESSAGE = "This field is required";
+
+const STRING_VALIDATIONS: Record<string, ValidationFactory> = {
+  email: rule => v.email(rule.message),
+  url: rule => v.url(rule.message),
+  uuid: rule => v.uuid(rule.message),
+  nonEmpty: rule => v.nonEmpty(rule.message),
+  minLength: rule => v.minLength(rule.value as number, rule.message),
+  maxLength: rule => v.maxLength(rule.value as number, rule.message),
+  regex: rule => v.regex(new RegExp(rule.value as string), rule.message),
+};
+
+const NUMBER_VALIDATIONS: Record<string, ValidationFactory> = {
+  minValue: rule => v.minValue(rule.value as number, rule.message),
+  maxValue: rule => v.maxValue(rule.value as number, rule.message),
+  integer: rule => v.integer(rule.message),
+};
+
+/**
+ * Valibot types `pipe` as a tuple of statically known actions; ours are
+ * assembled at runtime from the definition. The cast lives here, once.
+ */
+const pipe = (schema: GenericSchema, ...actions: unknown[]): GenericSchema =>
+  (v.pipe as any)(schema, ...actions);
+
+/**
+ * Forwards an action's error to the field at `path` so it renders under that
+ * field. Valibot derives legal forward paths from the schema's static shape,
+ * which cannot express our runtime-built paths — as with {@link pipe}, the
+ * cast is contained here.
+ */
+const forwardTo = (action: ValidationAction, path: readonly PathKey[]): unknown =>
+  v.forward(action as any, path as any);
+
+/**
+ * Compiles a form definition into the Valibot schema that validates its data.
+ *
+ * The schema always validates the WHOLE form, hidden fields included — so
+ * visibility-controlled fields are made optional here and re-required by
+ * {@link withRequiredWhenVisible}, otherwise a hidden required field would
+ * block submit with an error the user can never see.
+ */
+export function buildFormSchema(definition: FormDefinition): FormSchema {
+  const conditionalPaths = collectConditionalPaths(definition);
+  const root = v.object(buildEntries(definition.fields, [], conditionalPaths));
+  return withRequiredWhenVisible(root, definition) as FormSchema;
+}
+
+/** Collects the targets of every visibility affect; `populate` targets nothing. */
+function collectConditionalPaths(definition: FormDefinition): ConditionalPaths {
+  const targets = (definition.affects ?? []).flatMap(affect =>
+    affect.effect === "populate" ? [] : affect.targets,
+  );
+  return new Set(targets.map(toPathKey));
+}
+
+/** Builds the schema entries of one object level, keyed by field name. */
+function buildEntries(
+  fields: readonly FieldDefinition[],
+  parentPath: readonly PathKey[],
+  conditionalPaths: ConditionalPaths,
+): Record<string, GenericSchema> {
+  return Object.fromEntries(
+    fields.map(field => [
+      field.name,
+      buildField(field, [...parentPath, field.name], conditionalPaths),
+    ]),
+  );
+}
+
+/** Builds one field's schema and wraps it in `nullable` / `optional` as declared. */
+function buildField(
+  field: FieldDefinition,
+  path: readonly PathKey[],
+  conditionalPaths: ConditionalPaths,
+): GenericSchema {
+  const enforcesRequired = enforcesOwnRequired(field, path, conditionalPaths);
+
+  let schema = buildKindSchema(field, path, conditionalPaths, enforcesRequired);
+  if (field.nullable) schema = v.nullable(schema);
+  if (!enforcesRequired) schema = v.optional(schema);
+  return schema;
+}
+
+/**
+ * Whether the field carries its own required check. Not when explicitly
+ * optional, computed (the user can never fill it in), or targeted by a
+ * visibility affect — that case belongs to {@link withRequiredWhenVisible},
+ * and enforcing it here too would report the same error twice.
+ */
+function enforcesOwnRequired(
+  field: FieldDefinition,
+  path: readonly PathKey[],
+  conditionalPaths: ConditionalPaths,
+): boolean {
+  if (field.required === false) return false;
+  if (conditionalPaths.has(toPathKey(path))) return false;
+  return !(isValueField(field) && field.computed);
+}
+
+function buildKindSchema(
+  field: FieldDefinition,
+  path: readonly PathKey[],
+  conditionalPaths: ConditionalPaths,
+  required: boolean,
+): GenericSchema {
+  switch (field.kind) {
+    case "string": return buildStringSchema(field, required);
+    case "number": return buildNumberSchema(field, required);
+    case "enum": return buildEnumSchema(field, required);
+    case "boolean": return v.boolean();
+    case "date": return v.pipe(v.string(), v.isoDate());
+    case "object": return buildObjectSchema(field, path, conditionalPaths);
+    // every row shares one item schema, so the item's path carries no index
+    case "array": return v.array(buildField(field.item, path, conditionalPaths));
+  }
+}
+
+/** A required string must be non-empty; `""` reports as missing, not as a length error. */
+function buildStringSchema(field: ValueField, required: boolean): GenericSchema {
+  const validations = required
+    ? [{ type: "nonEmpty", message: requiredMessageOf(field) }, ...(field.validations ?? [])]
+    : field.validations;
+  return withValidations(v.string(), validations, STRING_VALIDATIONS);
+}
+
+/**
+ * A required number's *type* issue is the missing-value case (the input is
+ * `number | undefined`), so it carries the required message instead of
+ * "Expected number but received undefined". `NaN` fails the same way.
+ */
+function buildNumberSchema(field: ValueField, required: boolean): GenericSchema {
+  const base = required ? v.number(requiredMessageOf(field)) : v.number();
+  return withValidations(base, field.validations, NUMBER_VALIDATIONS);
+}
+
+/**
+ * A deselected select stores `undefined`, so a required enum reports its type
+ * issue as the missing-value case. Static options become a picklist; dynamic
+ * ones are only known once the host resolves them, so the schema requires a
+ * string — and for a required field also rejects `""`.
+ */
+function buildEnumSchema(field: ValueField, required: boolean): GenericSchema {
+  const message = required ? requiredMessageOf(field) : undefined;
+
+  if (field.optionsSource) {
+    return message ? v.pipe(v.string(message), v.nonEmpty(message)) : v.string();
+  }
+  return v.picklist((field.options ?? []).map(option => option.value), message);
+}
+
+/** Builds an object's entries, then applies its cross-field {@link ObjectCheck}s. */
+function buildObjectSchema(
+  field: ObjectField,
+  path: readonly PathKey[],
+  conditionalPaths: ConditionalPaths,
+): GenericSchema {
+  const entries: GenericSchema = v.object(buildEntries(field.fields, path, conditionalPaths));
+  return (field.checks ?? []).reduce(
+    (schema, check) => pipe(schema, toCheckAction(check)),
+    entries,
+  );
+}
+
+/**
+ * Compiles one cross-field check. Condition paths resolve relative to the
+ * object being checked, so on an array item the same action runs per row.
+ */
+function toCheckAction(check: ObjectCheck): unknown {
+  const passes = (data: FormData) => {
+    const read: ValueReader = path => getByPath(data, path);
+    return !evaluate(check.when, read) || evaluate(check.assert, read);
+  };
+
+  const action = v.check(passes, check.error);
+  return check.target ? forwardTo(action, [check.target]) : action;
+}
+
+/**
+ * Re-attaches required-ness to visibility-controlled fields as form-level
+ * checks: required only while their affects show them, with the error
+ * forwarded to the field so it renders in place.
+ */
+function withRequiredWhenVisible(root: GenericSchema, definition: FormDefinition): GenericSchema {
+  return conditionalRequiredFields(definition).reduce((schema, field) => {
+    const filledWhenVisible = (data: FormData) => {
+      const read: ValueReader = path => getByPath(data, path);
+      const visible = field.conditions.every(condition => evaluate(condition, read));
+      return !visible || !isEmpty(getByPath(data, field.path));
+    };
+
+    const action = v.check(filledWhenVisible, field.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE);
+    return pipe(schema, forwardTo(action, field.path));
+  }, root);
+}
+
+/** Appends the validations the registry knows about; unknown rule types are ignored. */
+function withValidations(
+  base: GenericSchema,
+  rules: readonly ValidationRule[] = [],
+  registry: Record<string, ValidationFactory>,
+): GenericSchema {
+  const actions = rules
+    .map(rule => registry[rule.type]?.(rule))
+    .filter((action): action is ValidationAction => !!action);
+
+  return actions.length ? pipe(base, ...actions) : base;
+}
+
+const requiredMessageOf = (field: FieldDefinition) =>
+  field.requiredMessage ?? DEFAULT_REQUIRED_MESSAGE;
+
+/**
+ * Collects the `initial` values declared across a definition. Fields without
+ * one are absent (not `undefined`), and an object contributes nothing unless
+ * a descendant has a value.
+ */
+export function buildInitialInput(definition: FormDefinition): Record<string, unknown> {
+  return collectInitialValues(definition.fields);
+}
+
+function collectInitialValues(fields: readonly FieldDefinition[]): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+
+  for (const field of fields) {
+    const value = initialValueOf(field);
+    if (value !== undefined) values[field.name] = value;
+  }
+
+  return values;
+}
+
+/** An object's initial value is assembled from its children; every other kind declares one. */
+function initialValueOf(field: FieldDefinition): unknown {
+  if (field.kind !== "object") return field.initial;
+
+  const nested = collectInitialValues(field.fields);
+  return Object.keys(nested).length ? nested : undefined;
+}
