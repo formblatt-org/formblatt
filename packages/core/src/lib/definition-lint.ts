@@ -165,11 +165,17 @@ function lintFields(
 
     switch (field.kind) {
       case "object":
+        if (field.hidden || field.disabled) {
+          error(issues, here, "hidden/disabled on an object field has no rendering effect — set it on its leaf fields");
+        }
         lintObjectChecks(field, here, issues);
         lintFields(definition, field.fields, here, inArrayItem, issues);
         break;
 
       case "array":
+        if (field.disabled) {
+          error(issues, here, "disabled on an array field has no effect — set it on the item's fields");
+        }
         if (location !== "fields") {
           warning(issues, here, "nested arrays validate but the built-in components cannot render them");
         }

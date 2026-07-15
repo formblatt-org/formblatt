@@ -97,6 +97,19 @@ describe("field-level checks", () => {
     expect(lint(def, "warning")).toEqual([expect.stringContaining("accepts no value")]);
   });
 
+  it("rejects hidden/disabled on container fields (they have no rendering effect)", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "o", kind: "object", hidden: true, fields: [{ name: "x", kind: "string" }] },
+        { name: "lines", kind: "array", disabled: true, item: { name: "i", kind: "string" } },
+      ],
+    };
+    const errors = lint(def, "error");
+    expect(errors).toContainEqual(expect.stringContaining("hidden/disabled on an object field"));
+    expect(errors).toContainEqual(expect.stringContaining("disabled on an array field"));
+  });
+
   it("warns on nested arrays (they validate but cannot be rendered)", () => {
     const def: FormDefinition = {
       id: "x",

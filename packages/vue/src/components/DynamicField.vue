@@ -31,9 +31,10 @@ const field = computed<ValueField | undefined>(() => {
   return isValueField(resolved) ? resolved : undefined;
 });
 
-// Only top-level placements count towards coverage; an array item's fields are
-// covered by the DynamicFieldArray that places them.
-const trackedName = props.name;
+// Placements count towards coverage by dotted name. A path with an index is
+// inside an array item — covered by the DynamicFieldArray that places the array.
+const trackedName = props.name
+  ?? (props.path?.every(key => typeof key === "string") ? props.path.join(".") : undefined);
 if (trackedName) {
   ctx.register(trackedName);
   onUnmounted(() => ctx.unregister(trackedName));

@@ -1,6 +1,6 @@
 import { nextTick, onMounted } from "vue";
-import { compileAffects, isComputedField, toPathKey, warn } from "@formblatt/core";
-import type { FieldDefinition, FormDefinition } from "@formblatt/core";
+import { compileAffects, isComputedField, toPathKey, walkValueFields, warn } from "@formblatt/core";
+import type { FormDefinition, ValueField } from "@formblatt/core";
 
 type Placements = Map<string, number>;
 
@@ -52,11 +52,12 @@ function warnDuplicatePlacements(placements: Placements): void {
 }
 
 /**
- * Object fields have no renderer, computed fields are always optional, and a
- * `hidden` field no `show` affect can reveal never renders (nor enforces
- * required), so none counts as missing. Array fields do — `DynamicFieldArray`
- * registers them — and so does a hidden field a `show` affect CAN reveal:
- * once shown it is re-required, so it still needs a place in the DOM.
+ * Every leaf value field places by its dotted name (`"address.city"`), arrays
+ * by their own name (`DynamicFieldArray` registers them). Computed fields are
+ * always optional, and a `hidden` field no `show` affect can reveal never
+ * renders (nor enforces required), so neither counts as missing — but a
+ * hidden field a `show` affect CAN reveal does: once shown it is re-required,
+ * so it still needs a place in the DOM.
  */
 function warnUnplacedFields(definition: FormDefinition, placements: Placements): void {
   const revealable = new Set(
@@ -64,14 +65,18 @@ function warnUnplacedFields(definition: FormDefinition, placements: Placements):
       .filter(([, rule]) => rule.revealsHidden)
       .map(([key]) => key),
   );
-  const neverRenders = (field: FieldDefinition) =>
-    !!field.hidden && !revealable.has(toPathKey([field.name]));
+  const neverRenders = (field: ValueField, path: string[]) =>
+    !!field.hidden && !revealable.has(toPathKey(path));
 
-  const unplaced = definition.fields
-    .filter(field => field.kind !== "object" && !isComputedField(field) && !neverRenders(field))
-    .filter(field => !placements.has(field.name))
-    .map(field => field.name);
+  const expected: string[] = [];
+  for (const { field, path } of walkValueFields(definition.fields)) {
+    if (!isComputedField(field) && !neverRenders(field, path)) expected.push(path.join("."));
+  }
+  for (const field of definition.fields) {
+    if (field.kind === "array") expected.push(field.name);
+  }
 
+  const unplaced = expected.filter(name => !placements.has(name));
   if (!unplaced.length) return;
 
   warn("form",
