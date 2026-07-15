@@ -1,5 +1,5 @@
 import { computed, watch } from "vue";
-import { compileAffects, evaluate, fromPathKey, toPathKey } from "@formblatt/core";
+import { compileAffects, evaluate, fromPathKey, resolveFieldByPath, toPathKey } from "@formblatt/core";
 import type { FormDefinition, PathKey } from "@formblatt/core";
 import { clearInput, createReader, type DynamicFormStore } from "../form-store";
 
@@ -13,8 +13,12 @@ export function useAffects(form: DynamicFormStore, definition: FormDefinition) {
   const rules = compileAffects(definition.affects);
   const read = createReader(form);
 
-  /** A field with no rules is always visible; rules on one field AND together. */
+  /**
+   * A field with no rules is always visible; rules on one field AND together.
+   * A statically `hidden` field is never visible — no affect overrides it.
+   */
   const isVisible = (path: readonly PathKey[]): boolean => {
+    if (resolveFieldByPath(definition, path)?.hidden) return false;
     const rule = rules.get(toPathKey(path));
     return !rule || rule.conditions.every(condition => evaluate(condition, read));
   };

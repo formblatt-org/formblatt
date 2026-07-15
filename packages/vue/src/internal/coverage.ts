@@ -52,12 +52,13 @@ function warnDuplicatePlacements(placements: Placements): void {
 }
 
 /**
- * Object fields have no renderer and computed fields are always optional, so
- * neither counts as missing. Array fields do — `DynamicFieldArray` registers them.
+ * Object fields have no renderer, computed fields are always optional, and
+ * statically `hidden` fields never render (nor enforce required), so none
+ * counts as missing. Array fields do — `DynamicFieldArray` registers them.
  */
 function warnUnplacedFields(definition: FormDefinition, placements: Placements): void {
   const unplaced = definition.fields
-    .filter(field => field.kind !== "object" && !isComputedField(field))
+    .filter(field => field.kind !== "object" && !isComputedField(field) && !field.hidden)
     .filter(field => !placements.has(field.name))
     .map(field => field.name);
 

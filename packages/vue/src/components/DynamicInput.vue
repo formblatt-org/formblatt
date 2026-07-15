@@ -18,6 +18,9 @@ const emit = defineEmits<{ "update:input": [value: unknown] }>()
 
 const choices = computed<readonly Option[]>(() => props.options ?? props.field.options ?? []);
 
+/** A control is disabled while its choices load, or statically by the definition. */
+const isDisabled = computed(() => props.loading || !!props.field.disabled);
+
 /**
  * An emptied number input reports `valueAsNumber` as `NaN` — store `undefined`
  * instead, so required/optional semantics apply rather than a NaN type error.
@@ -57,7 +60,7 @@ const onTextInput = (event: Event) => {
         <!-- an <option> can only hold text, so the spinner is overlaid and the text shifted right -->
         <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
           <span v-if="loading" class="spinner-select" aria-hidden="true" />
-          <select v-bind="fieldProps" :value="input" :disabled="loading" @change="onSelectChange">
+          <select v-bind="fieldProps" :value="input" :disabled="isDisabled" @change="onSelectChange">
             <option value="">{{ loading ? 'Loading…' : '— Select —' }}</option>
             <option v-for="choice in choices" :key="choice.value" :value="choice.value">
               {{ choice.label }}
@@ -66,13 +69,13 @@ const onTextInput = (event: Event) => {
         </div>
 
         <input v-else-if="field.control === 'checkbox'" type="checkbox" v-bind="fieldProps"
-            :disabled="loading" :checked="!!input" @change="onCheckboxChange" />
+            :disabled="isDisabled" :checked="!!input" @change="onCheckboxChange" />
 
         <input v-else-if="field.control === 'number'" type="number" v-bind="fieldProps"
-            :disabled="loading" :value="input" @input="onNumberInput" />
+            :disabled="isDisabled" :value="input" @input="onNumberInput" />
 
         <input v-else :type="field.control ?? 'text'" v-bind="fieldProps"
-            :disabled="loading" :value="input" @input="onTextInput" />
+            :disabled="isDisabled" :value="input" @input="onTextInput" />
     </label>
 
     <ul v-if="errors" class="field-errors">

@@ -33,7 +33,7 @@ const arrayField = computed<ArrayField | undefined>(() => {
   return field;
 });
 
-/** The value fields of one row: an object item's children, or the item itself when it is a value. */
+/** The value fields of one row: an object item's children, or the item itself when it is a value. Statically `hidden` fields are skipped. */
 const itemFields = computed<ItemField[]>(() => {
   const item = arrayField.value?.item;
   if (!item) return [];
@@ -41,9 +41,10 @@ const itemFields = computed<ItemField[]>(() => {
   if (item.kind === "object") {
     return item.fields
       .filter(isValueField)
+      .filter(field => !field.hidden)
       .map(field => ({ key: field.name, field }));
   }
-  return isValueField(item) ? [{ key: null, field: item }] : [];
+  return isValueField(item) && !item.hidden ? [{ key: null, field: item }] : [];
 });
 
 const itemPath = (index: number, child?: string): PathKey[] =>
@@ -74,7 +75,7 @@ usePlacedFields([props.name]);
 </script>
 
 <template>
-  <FieldArray v-if="arrayField" :of="ctx.form" :path="arrayPath" v-slot="array">
+  <FieldArray v-if="arrayField && !arrayField.hidden" :of="ctx.form" :path="arrayPath" v-slot="array">
     <!-- Opening this slot replaces the default rows entirely; build your own DOM from `items`. -->
     <slot
       :items="array.items"
