@@ -5,6 +5,7 @@ import { check } from "valibot";
 import type { FormDefinition, PopulateResolver } from "@formblatt/core";
 import DynamicForm from "../../src/components/DynamicForm.vue";
 import DynamicField from "../../src/components/DynamicField.vue";
+import { readInput, type DynamicFormStore } from "../../src/form-store";
 import { deferred, settle } from "../harness";
 
 const simple: FormDefinition = {
@@ -249,6 +250,32 @@ describe("DynamicForm error display and visibility", () => {
     expect(wrapper.find(".field-errors").exists()).toBe(true);
   });
 
+  it("keeps a pristine dependent-options field untouched in touched mode", async () => {
+    // regression: the options watcher used to "clear" the dependent field at mount even when
+    // already empty — formisch marks every write as touched, surfacing the required error
+    const definition: FormDefinition = {
+      id: "form-touched-options",
+      validate: "initial",
+      revalidate: "input",
+      fields: [
+        {
+          name: "size", kind: "enum", control: "radio", label: "Size", requiredMessage: "Pick a size",
+          options: [{ label: "S", value: "S" }],
+        },
+        {
+          name: "color", kind: "enum", control: "radio", label: "Color", requiredMessage: "Pick a color",
+          optionsSource: { source: "colors", dependsOn: [["size"]] },
+        },
+      ],
+    };
+    const wrapper = mount(DynamicForm, {
+      props: { definition, errorDisplay: "touched", resolveOptions: () => [] },
+    });
+    await settle(8);
+
+    expect(wrapper.findAll(".field-errors li")).toHaveLength(0);
+  });
+
   it("reveals an affect-shown field and its section only while the condition holds", async () => {
     const definition: FormDefinition = {
       id: "form-visibility",
@@ -329,6 +356,56 @@ describe("DynamicForm multiple enums", () => {
     await settle(5);
 
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({ features: ["a", "c"] });
+  });
+});
+
+describe("DynamicForm composed interactions", () => {
+  // the product-page pattern: cascading options feed a computed field
+  it("recomputes and reconciles when a cascade dependency changes", async () => {
+    const definition: FormDefinition = {
+      id: "form-variant",
+      validate: "initial",
+      revalidate: "input",
+      fields: [
+        {
+          name: "size", kind: "enum", control: "radio", label: "Size",
+          options: [{ label: "S", value: "S" }, { label: "M", value: "M" }],
+        },
+        { name: "color", kind: "enum", control: "radio", label: "Color", optionsSource: { source: "colors", dependsOn: [["size"]] } },
+        {
+          name: "sku", kind: "string", required: false, hidden: true,
+          computed: {
+            expression: {
+              if: { and: [{ path: ["size"], op: "notEmpty" }, { path: ["color"], op: "notEmpty" }] },
+              then: { op: "concat", sep: "-", args: [{ const: "TS" }, { ref: ["size"] }, { ref: ["color"] }] },
+              else: { const: "" },
+            },
+          },
+        },
+      ],
+    };
+    const colorsBySize: Record<string, string[]> = { S: ["BLK"], M: ["BLK", "OCN"] };
+    const resolveOptions = (_source: string, { deps }: { deps: Record<string, unknown> }) =>
+      (colorsBySize[deps.size as string] ?? []).map(value => ({ label: value, value }));
+
+    const wrapper = mount(DynamicForm, { props: { definition, resolveOptions } });
+    await settle();
+    const form = (wrapper.vm as unknown as { form: DynamicFormStore }).form;
+
+    // pick M → colors load → pick OCN → the sku computes
+    // (trigger change directly: happy-dom's selector parser trips over formisch's ["size"] input names on .checked writes)
+    await wrapper.find("input[type='radio'][value='M']").trigger("change");
+    await settle();
+    await wrapper.find("input[type='radio'][value='OCN']").trigger("change");
+    await settle();
+    expect(readInput(form, ["sku"])).toBe("TS-M-OCN");
+
+    // switch to S — OCN is not offered there: the color reconciles away, the sku empties, the form invalidates
+    await wrapper.find("input[type='radio'][value='S']").trigger("change");
+    await settle(6);
+    expect(readInput(form, ["color"])).toBeUndefined();
+    expect(readInput(form, ["sku"])).toBe("");
+    expect(form.isValid).toBe(false);
   });
 });
 

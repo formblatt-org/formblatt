@@ -86,9 +86,12 @@ export function useOptions(
       async dependencyValues => {
         setOptions(field.path, []); // the loaded options belong to the previous dependency value
 
-        // with a dependency empty there is nothing to choose from, so no value can be valid
+        // with a dependency empty there is nothing to choose from, so no value can be valid.
+        // An already-empty value is left alone: a pristine string-ish leaf holds "" (formisch's
+        // empty input), and re-writing it marks the field touched — which would surface its
+        // required error on a form nobody has interacted with.
         if (!allDependenciesFilled(dependencyValues)) {
-          clearInput(form, field.path);
+          if (!isEmpty(readInput(form, field.path))) clearInput(form, field.path);
           return;
         }
 
