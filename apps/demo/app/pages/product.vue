@@ -3,13 +3,52 @@ import { ref } from "vue";
 import type { FormDefinition, Option, OptionsResolver, PathKey } from "@formblatt/core";
 import { DynamicForm, DynamicField, readInput, type DynamicFormStore } from "@formblatt/vue";
 
+interface ColorInfo {
+  label: string;
+  hex: string;
+  description: string;
+}
+
+const COLORS: Record<string, ColorInfo> = {
+  BLK: {
+    label: "Black",
+    hex: "#1f2937",
+    description: "Deep black wash on 220 g/m² organic cotton — holds its color through the years, not just the season.",
+  },
+  WHT: {
+    label: "White",
+    hex: "#e5e7eb",
+    description: "Clean off-white on 220 g/m² organic cotton — the one you reach for with everything.",
+  },
+  OCN: {
+    label: "Ocean",
+    hex: "#1d4ed8",
+    description: "A saturated ocean blue, garment-dyed on 220 g/m² organic cotton for a soft, lived-in feel.",
+  },
+  GRY: {
+    label: "Heather grey",
+    hex: "#9ca3af",
+    description: "Classic heather grey — a cotton blend with just enough texture to look better up close.",
+  },
+};
+
+/** Which colors each size actually comes in — the whole point of the cascade. */
+const COLORS_BY_SIZE: Record<string, string[]> = {
+  S: ["BLK", "WHT"],
+  M: ["BLK", "WHT", "OCN"],
+  L: ["BLK", "OCN", "GRY"],
+  XL: ["GRY"],
+};
+
+const BASE_PRICE = 29;
+
 /**
- * A product page as a form: the form owns size / color / qty / sku, the page
- * owns the presentation that reacts to them. Colors cascade from the size
- * (not every size comes in every color — an invalid pick is auto-cleared),
- * and the variant SKU is a computed field: empty until both are chosen,
- * `TS-{size}-{color}` once they are. Everything right of the images keys off
- * that one value.
+ * A product page as a form: the form owns size / color / qty / sku — plus the
+ * DERIVED variant data, unitPrice and colorName, as hidden `lookup` fields
+ * that ride in the payload. Colors cascade from the size (not every size
+ * comes in every color — an invalid pick is auto-cleared), and the variant
+ * SKU is a computed field: empty until both are chosen, `TS-{size}-{color}`
+ * once they are. Only pure presentation (hex, description) stays page-side.
  */
 const productDefinition: FormDefinition = {
   id: "product-tshirt-v1",
@@ -55,47 +94,33 @@ const productDefinition: FormDefinition = {
         },
       },
     },
+    {
+      // the price at the time of adding rides in the payload — and the lint
+      // checks this table against the size options, so an XXL option added
+      // without a price would warn at validation
+      name: "unitPrice", kind: "number", required: false, hidden: true,
+      computed: {
+        expression: {
+          op: "lookup",
+          on: { ref: ["size"] },
+          table: { S: 29, M: 29, L: 29, XL: 32 },
+        },
+      },
+    },
+    {
+      // generated from the same catalog record that labels the color options —
+      // exactly what a backend serving this definition would do
+      name: "colorName", kind: "string", required: false, hidden: true,
+      computed: {
+        expression: {
+          op: "lookup",
+          on: { ref: ["color"] },
+          table: Object.fromEntries(Object.entries(COLORS).map(([value, color]) => [value, color.label])),
+        },
+      },
+    },
   ],
 };
-
-interface ColorInfo {
-  label: string;
-  hex: string;
-  description: string;
-}
-
-const COLORS: Record<string, ColorInfo> = {
-  BLK: {
-    label: "Black",
-    hex: "#1f2937",
-    description: "Deep black wash on 220 g/m² organic cotton — holds its color through the years, not just the season.",
-  },
-  WHT: {
-    label: "White",
-    hex: "#e5e7eb",
-    description: "Clean off-white on 220 g/m² organic cotton — the one you reach for with everything.",
-  },
-  OCN: {
-    label: "Ocean",
-    hex: "#1d4ed8",
-    description: "A saturated ocean blue, garment-dyed on 220 g/m² organic cotton for a soft, lived-in feel.",
-  },
-  GRY: {
-    label: "Heather grey",
-    hex: "#9ca3af",
-    description: "Classic heather grey — a cotton blend with just enough texture to look better up close.",
-  },
-};
-
-/** Which colors each size actually comes in — the whole point of the cascade. */
-const COLORS_BY_SIZE: Record<string, string[]> = {
-  S: ["BLK", "WHT"],
-  M: ["BLK", "WHT", "OCN"],
-  L: ["BLK", "OCN", "GRY"],
-  XL: ["GRY"],
-};
-
-const BASE_PRICE = 29;
 
 const resolveOptions: OptionsResolver = async (source, { deps }): Promise<Option[]> => {
   if (source !== "colors") return [];
@@ -115,19 +140,22 @@ interface Variant {
   hex: string;
 }
 
-/** The variant record the page renders — `undefined` until the SKU computes. */
+/**
+ * The variant record the page renders — `undefined` until the SKU computes.
+ * Name and price come straight from the form's lookup fields; only pure
+ * presentation is looked up here.
+ */
 const variantOf = (form: DynamicFormStore): Variant | undefined => {
   const sku = valueAt(form, ["sku"]) as string | undefined;
   if (!sku) return undefined;
 
-  const size = valueAt(form, ["size"]) as string;
-  const color = COLORS[valueAt(form, ["color"]) as string]!;
+  const presentation = COLORS[valueAt(form, ["color"]) as string]!;
   return {
     sku,
-    name: `Organic Cotton Tee — ${color.label}`,
-    description: color.description,
-    price: BASE_PRICE + (size === "XL" ? 3 : 0),
-    hex: color.hex,
+    name: `Organic Cotton Tee — ${valueAt(form, ["colorName"])}`,
+    description: presentation.description,
+    price: valueAt(form, ["unitPrice"]) as number,
+    hex: presentation.hex,
   };
 };
 
@@ -135,10 +163,10 @@ const money = (value: number) => `€${value.toFixed(2)}`;
 
 const cart = ref<{ sku: string; qty: number; name: string; unitPrice: number }[]>([]);
 
-const addToCart = (values: unknown, { form }: { form: DynamicFormStore }) => {
-  const { sku, qty } = values as { sku: string; qty: number };
-  const variant = variantOf(form)!;
-  cart.value.push({ sku, qty, name: variant.name, unitPrice: variant.price });
+/** The payload is self-describing now — no reach back into the store needed. */
+const addToCart = (values: unknown) => {
+  const { sku, qty, unitPrice, colorName } = values as { sku: string; qty: number; unitPrice: number; colorName: string };
+  cart.value.push({ sku, qty, name: `Organic Cotton Tee — ${colorName}`, unitPrice });
 }
 </script>
 

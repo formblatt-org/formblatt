@@ -11,7 +11,7 @@ const DEMOS = [
     to: "/product",
     title: "Product page",
     scenario: "A t-shirt with size and color variants — the page follows the computed SKU.",
-    features: ["cascading variants", "computed SKU", "qty min/max", "validity-gated action"],
+    features: ["cascading variants", "computed SKU", "lookup-table pricing", "validity-gated action"],
   },
   {
     to: "/checkout",
