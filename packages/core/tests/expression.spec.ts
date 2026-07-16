@@ -51,6 +51,50 @@ describe("evalExpression", () => {
     expect(evalExpression({ op: "round", args: [{ const: 3.6 }] }, noRead)).toBe(4);
   });
 
+  describe("lookup", () => {
+    const table = { adult: 49, student: 25, child: 10 };
+
+    it("yields the table entry for the key", () => {
+      const expr: Expression = { op: "lookup", on: { ref: ["ticket"] }, table };
+      expect(evalExpression(expr, readFrom({ ticket: "student" }))).toBe(25);
+    });
+
+    it("coerces a non-string key to its string form", () => {
+      const expr: Expression = { op: "lookup", on: { ref: ["floor"] }, table: { "3": "third" } };
+      expect(evalExpression(expr, readFrom({ floor: 3 }))).toBe("third");
+    });
+
+    it("composes: a concat key and an expression default", () => {
+      const expr: Expression = {
+        op: "lookup",
+        on: { op: "concat", sep: "-", args: [{ ref: ["size"] }, { ref: ["color"] }] },
+        table: { "M-OCN": 31 },
+        default: { ref: ["basePrice"] },
+      };
+      expect(evalExpression(expr, readFrom({ size: "M", color: "OCN" }))).toBe(31);
+      expect(evalExpression(expr, readFrom({ size: "S", color: "BLK", basePrice: 29 }))).toBe(29);
+    });
+
+    it("yields the default on a miss, undefined without one", () => {
+      const withDefault: Expression = { op: "lookup", on: { ref: ["ticket"] }, table, default: { const: 0 } };
+      expect(evalExpression(withDefault, readFrom({ ticket: "vip" }))).toBe(0);
+
+      const bare: Expression = { op: "lookup", on: { ref: ["ticket"] }, table };
+      expect(evalExpression(bare, readFrom({ ticket: "vip" }))).toBeUndefined();
+    });
+
+    it("treats an empty key as a miss — it must not stringify to a real key", () => {
+      const expr: Expression = { op: "lookup", on: { ref: ["missing"] }, table: { undefined: "gotcha" }, default: { const: "fallback" } };
+      expect(evalExpression(expr, noRead)).toBe("fallback");
+    });
+
+    it("only matches the table's own entries — form data cannot reach the prototype", () => {
+      const expr: Expression = { op: "lookup", on: { ref: ["key"] }, table };
+      expect(evalExpression(expr, readFrom({ key: "constructor" }))).toBeUndefined();
+      expect(evalExpression(expr, readFrom({ key: "__proto__" }))).toBeUndefined();
+    });
+  });
+
   describe("dateDiff", () => {
     it("counts whole days", () => {
       const expr: Expression = { op: "dateDiff", unit: "days", args: [{ const: "2025-01-01" }, { const: "2025-01-11" }] };

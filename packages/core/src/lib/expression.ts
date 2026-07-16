@@ -3,6 +3,7 @@ import { evaluate, isEmpty, type ValueReader } from "./condition";
 
 type ArithmeticOperator = "add" | "sub" | "mul" | "div";
 type DateDiffExpression = Extract<Expression, { op: "dateDiff" }>;
+type LookupExpression = Extract<Expression, { op: "lookup" }>;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -58,9 +59,25 @@ export function evalExpression(expression: Expression, read: ValueReader): unkno
     case "dateDiff":
       return dateDiff(expression, read);
 
+    case "lookup":
+      return lookup(expression, read);
+
     case "now":
       return new Date();
   }
+}
+
+/**
+ * The `on` key's table entry; `default` (or `undefined`) for an empty key or
+ * a miss. `Object.hasOwn` because the key is form data: a user typing
+ * "constructor" must miss, not dredge up the prototype.
+ */
+function lookup(expression: LookupExpression, read: ValueReader): unknown {
+  const key = evalExpression(expression.on, read);
+  if (!isEmpty(key) && Object.hasOwn(expression.table, String(key))) {
+    return expression.table[String(key)];
+  }
+  return expression.default ? evalExpression(expression.default, read) : undefined;
 }
 
 /** The first argument that is neither nullish nor `""`, or `undefined` if all are. */

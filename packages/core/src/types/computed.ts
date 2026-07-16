@@ -21,6 +21,11 @@ import type { Condition, PathKey } from "./condition";
  *   yield `undefined`. Note the spelling: singular `month`.
  * - `now` — the current `Date`; re-evaluates on reactive changes, not a timer.
  * - `{ if, then, else }` — branches on a {@link Condition}.
+ * - `lookup` — evaluates `on`, coerces it to a string key (`42` keys as
+ *   `"42"`) and yields that entry of `table`. An empty key (`null` /
+ *   `undefined` / `""`) or a missing entry yields `default` — itself an
+ *   expression — or `undefined` without one. Only the table's OWN entries
+ *   match: a value like `"constructor"` cannot reach the prototype.
  *
  * Arithmetic over missing refs produces `NaN`, which the engine converts to
  * `undefined` at the store boundary — `coalesce` in a `{ const: 0 }` when a
@@ -36,6 +41,7 @@ export type Expression =
   | { op: "round"; args: readonly [Expression]; precision?: number }
   | { op: "dateDiff"; args: readonly [Expression, Expression]; unit?: "days" | "month" | "years" }
   | { op: "now" }
+  | { op: "lookup"; on: Expression; table: Readonly<Record<string, unknown>>; default?: Expression }
   | { if: Condition; then: Expression; else: Expression };
 
 /**
