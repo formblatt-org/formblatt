@@ -65,10 +65,16 @@ const onSelectChange = (event: Event) => {
   emit("update:input", value === "" ? undefined : value);
 };
 
-/** A `multiple` enum stores the selected values as a `string[]` — `[]` when none. */
-const onMultiSelectChange = (event: Event) => {
-  const values = [...(event.target as HTMLSelectElement).selectedOptions].map(option => option.value);
-  emit("update:input", values);
+/**
+ * Toggles one choice of a `multiple` enum. The stored `string[]` is rebuilt in
+ * option order, so the submitted value doesn't depend on click order — `[]`
+ * when nothing is checked.
+ */
+const onMultiToggle = (value: string, event: Event) => {
+  const next = new Set(Array.isArray(props.input) ? (props.input as string[]) : []);
+  if ((event.target as HTMLInputElement).checked) next.add(value);
+  else next.delete(value);
+  emit("update:input", choices.value.filter(choice => next.has(choice.value)).map(choice => choice.value));
 };
 
 const isSelected = (value: string) => Array.isArray(props.input) && props.input.includes(value);
@@ -115,6 +121,26 @@ const onTextInput = (event: Event) => {
       </label>
     </fieldset>
 
+    <!-- a multi-enum is a checkbox group: plain clicks toggle — a <select multiple> would demand ctrl+click, which nobody discovers -->
+    <fieldset v-else-if="field.multiple" class="checkbox-group" v-bind="aria">
+      <legend v-if="field.label">
+        {{ field.label }}
+        <span v-if="loading" class="spinner-sm" aria-hidden="true" />
+      </legend>
+      <label v-for="choice in choices" :key="choice.value" class="checkbox-option">
+        <input
+          type="checkbox"
+          :name="fieldProps.name"
+          :value="choice.value"
+          :checked="isSelected(choice.value)"
+          :disabled="isDisabled"
+          @change="onMultiToggle(choice.value, $event)"
+          @blur="fieldProps.onBlur"
+        />
+        <span>{{ choice.label }}</span>
+      </label>
+    </fieldset>
+
     <label v-else>
         <span v-if="field.label">
           {{ field.label }}
@@ -126,16 +152,7 @@ const onTextInput = (event: Event) => {
         <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
           <span v-if="loading" class="spinner-select" aria-hidden="true" />
 
-          <!-- no placeholder option: a multi-select needs no deselect affordance -->
-          <select v-if="field.multiple" multiple v-bind="{ ...fieldProps, ...aria }"
-              :disabled="isDisabled" @change="onMultiSelectChange">
-            <option v-for="choice in choices" :key="choice.value" :value="choice.value"
-                :selected="isSelected(choice.value)">
-              {{ choice.label }}
-            </option>
-          </select>
-
-          <select v-else v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
+          <select v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
             <option value="">{{ loading ? text.loading : text.selectPlaceholder }}</option>
             <option v-for="choice in choices" :key="choice.value" :value="choice.value">
               {{ choice.label }}
@@ -257,13 +274,18 @@ const onTextInput = (event: Event) => {
   cursor: not-allowed;
 }
 
-.radio-group {
+.radio-group,
+.checkbox-group {
   margin: 0;
   padding: 0;
   border: none;
 }
 
-.radio-group legend {
+.radio-group legend,
+.checkbox-group legend {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
   margin-bottom: .35rem;
   padding: 0;
   font-size: .85rem;
@@ -272,7 +294,8 @@ const onTextInput = (event: Event) => {
 }
 
 /* .field .radio-option outranks `.field label`, whose display: block would defeat the flex row */
-.field .radio-option {
+.field .radio-option,
+.field .checkbox-option {
   display: flex;
   align-items: center;
   gap: .45rem;
@@ -282,16 +305,13 @@ const onTextInput = (event: Event) => {
   cursor: pointer;
 }
 
-/* escape the full-width text-input styling above, or the radio stretches past its label */
-.radio-option input {
+/* escape the full-width text-input styling above, or the control stretches past its label */
+.field .radio-option input,
+.field .checkbox-option input {
   flex: none;
   width: auto;
   margin: 0;
   padding: 0;
-}
-
-.field select[multiple] {
-  min-height: 6.5rem;
 }
 
 .field-errors {

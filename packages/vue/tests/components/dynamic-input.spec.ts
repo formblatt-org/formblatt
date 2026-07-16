@@ -53,6 +53,32 @@ describe("DynamicInput value normalization", () => {
     expect(lastInput(wrapper)).toBeUndefined();
   });
 
+  it("renders a multiple enum as a checkbox group and toggles values in option order", async () => {
+    const options = [
+      { label: "A", value: "a" },
+      { label: "B", value: "b" },
+      { label: "C", value: "c" },
+    ];
+    const wrapper = mountInput({ kind: "enum", multiple: true, control: "select", options });
+
+    // no ctrl+click UI: a multi-enum must not render a <select multiple>
+    expect(wrapper.find("select").exists()).toBe(false);
+    const boxes = wrapper.findAll("input[type='checkbox']");
+    expect(boxes).toHaveLength(3);
+
+    await boxes[2]!.setValue(true);
+    expect(lastInput(wrapper)).toEqual(["c"]);
+
+    // the parent writes the value back; checking another box extends it — in option order, not click order
+    await wrapper.setProps({ input: ["c"] });
+    await boxes[0]!.setValue(true);
+    expect(lastInput(wrapper)).toEqual(["a", "c"]);
+
+    await wrapper.setProps({ input: ["a", "c"] });
+    await boxes[2]!.setValue(false);
+    expect(lastInput(wrapper)).toEqual(["a"]);
+  });
+
   it("renders control: textarea as a real <textarea>, not <input type='textarea'>", async () => {
     const wrapper = mountInput({ kind: "string", control: "textarea" });
 
@@ -85,19 +111,6 @@ describe("DynamicInput value normalization", () => {
     expect(lastInput(wrapper)).toBe("red");
   });
 
-  it("emits the selection list of a multiple enum", async () => {
-    const wrapper = mountInput({
-      kind: "enum", control: "select", multiple: true,
-      options: [{ label: "Cheese", value: "cheese" }, { label: "Ham", value: "ham" }],
-    }, { input: ["ham"] });
-
-    const select = wrapper.find("select");
-    expect(select.attributes("multiple")).toBeDefined();
-    expect((wrapper.findAll("option")[1]!.element as HTMLOptionElement).selected).toBe(true);
-
-    await select.setValue(["cheese", "ham"]);
-    expect(lastInput(wrapper)).toEqual(["cheese", "ham"]);
-  });
 });
 
 describe("DynamicInput accessibility contract", () => {

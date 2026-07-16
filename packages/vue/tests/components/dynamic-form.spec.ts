@@ -300,6 +300,38 @@ describe("DynamicForm custom controls", () => {
   });
 });
 
+describe("DynamicForm multiple enums", () => {
+  it("checkbox toggles accumulate into the stored string[] and submit as one", async () => {
+    const definition: FormDefinition = {
+      id: "form-multi",
+      fields: [
+        {
+          name: "features", kind: "enum", multiple: true, label: "Features", required: false,
+          options: [
+            { label: "A", value: "a" },
+            { label: "B", value: "b" },
+            { label: "C", value: "c" },
+          ],
+        },
+      ],
+    };
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, { props: { definition, onSubmit } });
+
+    // two separate clicks — the second must EXTEND the selection, not replace it
+    const boxes = wrapper.findAll("input[type='checkbox']");
+    await boxes[0]!.setValue(true);
+    await settle();
+    await boxes[2]!.setValue(true);
+    await settle();
+
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({ features: ["a", "c"] });
+  });
+});
+
 describe("DynamicForm coverage warnings", () => {
   it("warns about fields the custom slot never places", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

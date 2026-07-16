@@ -116,9 +116,10 @@ export interface ValueField extends BaseField {
   options?: readonly Option[];
   /**
    * `enum` only: the value is a `string[]` of distinct choices — rendered as
-   * a multi-select. `required` demands at least one choice; note a
-   * visibility-controlled required multi-enum accepts an empty selection
-   * (`[]` counts as filled there).
+   * a checkbox group (a `<select multiple>` would demand ctrl+click).
+   * `required` demands at least one choice; note a visibility-controlled
+   * required multi-enum accepts an empty selection (`[]` counts as filled
+   * there).
    */
   multiple?: boolean;
   /**
