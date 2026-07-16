@@ -259,7 +259,8 @@ const onTextInput = (event: Event) => {
   color: #374151;
 }
 
-.radio-option {
+/* .field .radio-option outranks `.field label`, whose display: block would defeat the flex row */
+.field .radio-option {
   display: flex;
   align-items: center;
   gap: .45rem;
@@ -269,8 +270,12 @@ const onTextInput = (event: Event) => {
   cursor: pointer;
 }
 
+/* escape the full-width text-input styling above, or the radio stretches past its label */
 .radio-option input {
+  flex: none;
+  width: auto;
   margin: 0;
+  padding: 0;
 }
 
 .field select[multiple] {
