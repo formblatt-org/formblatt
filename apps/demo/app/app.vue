@@ -13,6 +13,12 @@
       <NuxtLink to="/settings">Settings</NuxtLink>
       <NuxtLink to="/survey">Survey</NuxtLink>
       <NuxtLink to="/contact">Contact</NuxtLink>
+      <NuxtLink to="/booking">Booking</NuxtLink>
+      <NuxtLink to="/transfer">Transfer</NuxtLink>
+      <NuxtLink to="/donate">Donate</NuxtLink>
+      <NuxtLink to="/support">Support</NuxtLink>
+      <NuxtLink to="/event">Event</NuxtLink>
+      <NuxtLink to="/flights">Flights</NuxtLink>
       <NuxtLink to="/playground">Playground</NuxtLink>
     </nav>
     <NuxtPage />
@@ -31,11 +37,16 @@ body {
 <style scoped>
 .app-nav {
   display: flex;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  gap: .5rem 1.1rem;
   padding: .875rem 1.5rem;
   background: #fff;
   border-bottom: 1px solid #e5e7eb;
-  font-size: .9rem;
+  font-size: .85rem;
+}
+
+.app-nav a {
+  white-space: nowrap;
 }
 
 .app-nav a {

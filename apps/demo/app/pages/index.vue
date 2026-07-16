@@ -56,6 +56,42 @@ const DEMOS = [
     features: ["message catalog", "interpolated errors", "localized UI text"],
   },
   {
+    to: "/booking",
+    title: "Appointment booking",
+    scenario: "Pick a service, stylist and date — the slots follow all three.",
+    features: ["multi-dependency options", "cascading reloads", "computed price"],
+  },
+  {
+    to: "/transfer",
+    title: "Bank transfer",
+    scenario: "A payment form with a saved-beneficiary shortcut.",
+    features: ["IBAN mod-97 rule", "populate & revert", "server-side rejection"],
+  },
+  {
+    to: "/donate",
+    title: "Donation",
+    scenario: "Preset or custom amounts with live fee coverage.",
+    features: ["conditional field", "if-expressions", "expression-computed total"],
+  },
+  {
+    to: "/support",
+    title: "Support ticket",
+    scenario: "One form that reshapes itself per category.",
+    features: ["section visibleWhen", "hideAndClear", "cascading subcategory"],
+  },
+  {
+    to: "/event",
+    title: "Event registration",
+    scenario: "Multiple attendees, each row priced and checked on its own.",
+    features: ["per-row expressions", "per-row checks", "remote promo code"],
+  },
+  {
+    to: "/flights",
+    title: "Flight search",
+    scenario: "Return or one-way, with a declarative cross-date guard.",
+    features: ["hideAndClear", "dateDiff expression", "validated computed field"],
+  },
+  {
     to: "/playground",
     title: "Definition playground",
     scenario: "Edit a raw definition and watch the serving pipeline judge it.",
