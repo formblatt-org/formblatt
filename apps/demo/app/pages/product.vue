@@ -42,13 +42,16 @@ const COLORS_BY_SIZE: Record<string, string[]> = {
 
 const BASE_PRICE = 29;
 
+const BASE_DESCRIPTION =
+  "Our everyday tee in heavyweight organic cotton. Pre-shrunk, side-seamed, and cut a touch longer in the body.";
+
 /**
- * A product page as a form: the form owns size / color / qty / sku — plus the
- * DERIVED variant data, unitPrice and colorName, as hidden `lookup` fields
- * that ride in the payload. Colors cascade from the size (not every size
- * comes in every color — an invalid pick is auto-cleared), and the variant
- * SKU is a computed field: empty until both are chosen, `TS-{size}-{color}`
- * once they are. Only pure presentation (hex, description) stays page-side.
+ * A fully definition-driven product page. The form owns size / color / qty /
+ * sku plus the derived variant DATA (unitPrice, colorName — they ride in the
+ * payload), and the derived PRESENTATION (productName, hex, description) as
+ * `transient` lookup fields: rendered from the store, stripped from the
+ * submitted values. Even the base-product fallbacks live here, as lookup
+ * `default`s. The page itself computes nothing.
  */
 const productDefinition: FormDefinition = {
   id: "product-tshirt-v1",
@@ -119,6 +122,41 @@ const productDefinition: FormDefinition = {
         },
       },
     },
+
+    // ---- transient presentation: rendered from the store, never submitted ----
+    {
+      // chains off the colorName lookup — computed fields may feed each other
+      name: "productName", kind: "string", required: false, hidden: true, transient: true,
+      computed: {
+        expression: {
+          if: { path: ["colorName"], op: "notEmpty" },
+          then: { op: "concat", sep: " — ", args: [{ const: "Organic Cotton Tee" }, { ref: ["colorName"] }] },
+          else: { const: "Organic Cotton Tee" },
+        },
+      },
+    },
+    {
+      name: "hex", kind: "string", required: false, hidden: true, transient: true,
+      computed: {
+        expression: {
+          op: "lookup",
+          on: { ref: ["color"] },
+          table: Object.fromEntries(Object.entries(COLORS).map(([value, color]) => [value, color.hex])),
+          default: { const: "#f3f4f6" }, // the base-product placeholder grey
+        },
+      },
+    },
+    {
+      name: "description", kind: "string", required: false, hidden: true, transient: true,
+      computed: {
+        expression: {
+          op: "lookup",
+          on: { ref: ["color"] },
+          table: Object.fromEntries(Object.entries(COLORS).map(([value, color]) => [value, color.description])),
+          default: { const: BASE_DESCRIPTION },
+        },
+      },
+    },
   ],
 };
 
@@ -132,34 +170,10 @@ const resolveOptions: OptionsResolver = async (source, { deps }): Promise<Option
 
 const valueAt = (form: DynamicFormStore, path: PathKey[]) => readInput(form, path);
 
-interface Variant {
-  sku: string;
-  name: string;
-  description: string;
-  price: number;
-  hex: string;
-}
+/** The tee glyph needs extra brightness on every swatch except the light ones. */
+const isDark = (hex: unknown) => hex !== "#e5e7eb" && hex !== "#f3f4f6";
 
-/**
- * The variant record the page renders — `undefined` until the SKU computes.
- * Name and price come straight from the form's lookup fields; only pure
- * presentation is looked up here.
- */
-const variantOf = (form: DynamicFormStore): Variant | undefined => {
-  const sku = valueAt(form, ["sku"]) as string | undefined;
-  if (!sku) return undefined;
-
-  const presentation = COLORS[valueAt(form, ["color"]) as string]!;
-  return {
-    sku,
-    name: `Organic Cotton Tee — ${valueAt(form, ["colorName"])}`,
-    description: presentation.description,
-    price: valueAt(form, ["unitPrice"]) as number,
-    hex: presentation.hex,
-  };
-};
-
-const money = (value: number) => `€${value.toFixed(2)}`;
+const money = (value: unknown) => `€${Number(value ?? 0).toFixed(2)}`;
 
 const cart = ref<{ sku: string; qty: number; name: string; unitPrice: number }[]>([]);
 
@@ -186,28 +200,25 @@ const addToCart = (values: unknown) => {
       v-slot="{ form, isValid, isBusy, isSubmitting }"
     >
       <div class="product">
-        <!-- left: images follow the computed variant -->
+        <!-- left: the images read the transient hex field; its lookup default paints the base grey -->
         <div class="gallery">
-          <div class="image main" :style="{ background: variantOf(form)?.hex ?? '#f3f4f6' }">
-            <span class="tee" :class="{ 'on-dark': !!variantOf(form) && variantOf(form)!.hex !== '#e5e7eb' }">👕</span>
+          <div class="image main" :style="{ background: (valueAt(form, ['hex']) as string) }">
+            <span class="tee" :class="{ 'on-dark': isDark(valueAt(form, ['hex'])) }">👕</span>
           </div>
           <div class="thumbs">
             <div v-for="n in 3" :key="n" class="image thumb"
-                 :style="{ background: variantOf(form)?.hex ?? '#f3f4f6', opacity: 1 - n * 0.18 }" />
+                 :style="{ background: (valueAt(form, ['hex']) as string), opacity: 1 - n * 0.18 }" />
           </div>
         </div>
 
-        <!-- right: name, description and price key off the same variant -->
+        <!-- right: every text reads a form field; only the price gates on the completed sku -->
         <div class="info">
-          <h1>{{ variantOf(form)?.name ?? "Organic Cotton Tee" }}</h1>
-          <p class="sku">{{ variantOf(form) ? `SKU ${variantOf(form)!.sku}` : "Select a size and color" }}</p>
+          <h1>{{ valueAt(form, ['productName']) }}</h1>
+          <p class="sku">{{ valueAt(form, ['sku']) ? `SKU ${valueAt(form, ['sku'])}` : "Select a size and color" }}</p>
           <p class="price">
-            {{ variantOf(form) ? money(variantOf(form)!.price) : `from ${money(BASE_PRICE)}` }}
+            {{ valueAt(form, ['sku']) ? money(valueAt(form, ['unitPrice'])) : `from ${money(BASE_PRICE)}` }}
           </p>
-          <p class="description">
-            {{ variantOf(form)?.description
-              ?? "Our everyday tee in heavyweight organic cotton. Pre-shrunk, side-seamed, and cut a touch longer in the body." }}
-          </p>
+          <p class="description">{{ valueAt(form, ['description']) }}</p>
 
           <DynamicField name="size" />
           <DynamicField name="color" />
@@ -217,7 +228,9 @@ const addToCart = (values: unknown) => {
 
           <!-- explicitly disabled until the variant is complete — the requested UX -->
           <button type="submit" class="add-to-cart" :disabled="!isValid || isBusy || isSubmitting">
-            {{ variantOf(form) ? `Add to cart · ${money(variantOf(form)!.price * Number(valueAt(form, ['qty']) ?? 1))}` : "Add to cart" }}
+            {{ valueAt(form, ['sku'])
+              ? `Add to cart · ${money(Number(valueAt(form, ['unitPrice'])) * Number(valueAt(form, ['qty']) ?? 1))}`
+              : "Add to cart" }}
           </button>
 
           <ul v-if="cart.length" class="cart">
