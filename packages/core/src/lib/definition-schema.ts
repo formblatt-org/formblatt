@@ -50,6 +50,12 @@ export const ExpressionSchema: v.GenericSchema<Expression> = v.lazy(() =>
       unit: v.optional(v.picklist(["days", "month", "years"])),
     }),
     v.object({ op: v.literal("now") }),
+    v.object({
+      op: v.literal("lookup"),
+      on: ExpressionSchema,
+      table: v.record(v.string(), v.unknown()),
+      default: v.optional(ExpressionSchema),
+    }),
     v.object({ if: ConditionSchema, then: ExpressionSchema, else: ExpressionSchema }),
     // strict + last: `const` may legitimately hold undefined, so a loose object
     // here would swallow every malformed expression in the union

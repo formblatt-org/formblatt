@@ -234,6 +234,53 @@ describe("computed and dynamic options", () => {
   });
 });
 
+describe("lookup tables", () => {
+  const withLookup = (expression: unknown): FormDefinition => ({
+    id: "x",
+    fields: [
+      {
+        name: "ticket", kind: "enum",
+        options: [{ label: "Adult", value: "adult" }, { label: "Child", value: "child" }],
+      },
+      { name: "price", kind: "number", required: false, computed: { expression: expression as never } },
+    ],
+  });
+
+  it("warns about a table key no option of a static enum produces", () => {
+    const def = withLookup({ op: "lookup", on: { ref: ["ticket"] }, table: { adult: 49, child: 10, adlut: 1 } });
+    expect(lint(def, "warning")).toEqual([expect.stringContaining('table key "adlut" matches no option')]);
+  });
+
+  it("warns about an option with no table entry and no default", () => {
+    const def = withLookup({ op: "lookup", on: { ref: ["ticket"] }, table: { adult: 49 } });
+    expect(lint(def, "warning")).toEqual([expect.stringContaining('option "child"')]);
+  });
+
+  it("stays quiet when a default covers the misses", () => {
+    const def = withLookup({ op: "lookup", on: { ref: ["ticket"] }, table: { adult: 49 }, default: { const: 0 } });
+    expect(lint(def)).toEqual([]);
+  });
+
+  it("skips the table checks when the key space is unknowable", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "code", kind: "string" },
+        { name: "price", kind: "number", required: false, computed: { expression: { op: "lookup", on: { ref: ["code"] }, table: { X: 1 } } } },
+      ],
+    };
+    expect(lint(def)).toEqual([]);
+  });
+
+  it("still checks the refs inside `on` and `default`", () => {
+    const def = withLookup({ op: "lookup", on: { ref: ["tickt"] }, table: {}, default: { ref: ["ghost"] } });
+    expect(lint(def, "error")).toEqual([
+      expect.stringContaining('["tickt"] does not resolve'),
+      expect.stringContaining('["ghost"] does not resolve'),
+    ]);
+  });
+});
+
 describe("object checks", () => {
   const withCheck = (check: object): FormDefinition => ({
     id: "x",

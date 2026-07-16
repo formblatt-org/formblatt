@@ -143,8 +143,70 @@ function collectExpressionPaths(
     collectExpressionPaths(expression.else, paths);
     return paths;
   }
+  if (expression.op === "lookup") {
+    collectExpressionPaths(expression.on, paths);
+    if (expression.default) collectExpressionPaths(expression.default, paths);
+    return paths;
+  }
   if (expression.op !== "now") expression.args.forEach(arg => collectExpressionPaths(arg, paths));
   return paths;
+}
+
+type LookupExpression = Extract<Expression, { op: "lookup" }>;
+
+/** Every `lookup` at any depth, for the enum-table checks. */
+function collectLookups(
+  expression: Expression,
+  found: LookupExpression[] = [],
+): LookupExpression[] {
+  if ("const" in expression || "ref" in expression) return found;
+  if ("if" in expression) {
+    collectLookups(expression.then, found);
+    collectLookups(expression.else, found);
+    return found;
+  }
+  if (expression.op === "lookup") {
+    found.push(expression);
+    collectLookups(expression.on, found);
+    if (expression.default) collectLookups(expression.default, found);
+    return found;
+  }
+  if (expression.op !== "now") expression.args.forEach(arg => collectLookups(arg, found));
+  return found;
+}
+
+/**
+ * When `on` is a ref to a static-options enum, the options ARE the complete
+ * key space — so a table key outside them is a typo, and an option with no
+ * entry and no `default` is a guaranteed runtime miss. Both are things nested
+ * `if` chains could never be checked for.
+ */
+function lintLookupTable(
+  root: readonly FieldDefinition[],
+  lookup: LookupExpression,
+  location: string,
+  issues: LintIssue[],
+): void {
+  if (!("ref" in lookup.on)) return;
+
+  const { field } = resolveForDiagnostics(root, lookup.on.ref);
+  if (!field || field.kind !== "enum" || field.multiple || !field.options?.length) return;
+
+  const values = new Set(field.options.map(option => option.value));
+  for (const key of Object.keys(lookup.table)) {
+    if (!values.has(key)) {
+      warning(issues, location, `lookup table key "${key}" matches no option of ${showPath(lookup.on.ref)}`);
+    }
+  }
+
+  if (!lookup.default) {
+    for (const value of values) {
+      if (!Object.hasOwn(lookup.table, value)) {
+        warning(issues, location,
+          `option "${value}" of ${showPath(lookup.on.ref)} has no table entry and the lookup declares no default — it yields undefined`);
+      }
+    }
+  }
 }
 
 /** Reports paths that read nothing: unresolvable, or crossing an array without an index. */
@@ -276,9 +338,12 @@ function lintValueField(
 
   if ("expression" in field.computed) {
     // top-level and object-nested refs are absolute; inside an array item they are row-relative
-    const root = inArrayItem ? rowRootOf(definition, location) : definition.fields;
-    lintReadPaths(root ?? definition.fields, collectExpressionPaths(field.computed.expression),
+    const root = (inArrayItem ? rowRootOf(definition, location) : definition.fields) ?? definition.fields;
+    lintReadPaths(root, collectExpressionPaths(field.computed.expression),
       `${location}.computed`, "ref", issues);
+    for (const lookup of collectLookups(field.computed.expression)) {
+      lintLookupTable(root, lookup, `${location}.computed`, issues);
+    }
   } else if (inArrayItem) {
     error(issues, location, "source-mode computed is not supported inside array items — use an expression");
   } else {

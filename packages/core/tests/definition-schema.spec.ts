@@ -16,6 +16,7 @@ const kitchenSink: FormDefinition = {
     { name: "state", kind: "enum", required: false, optionsSource: { source: "states", dependsOn: [["country"]] } },
     { name: "fullName", kind: "string", required: false, computed: { expression: { op: "concat", sep: " ", args: [{ ref: ["email"] }, { const: "x" }] } } },
     { name: "age", kind: "number", required: false, computed: { expression: { op: "dateDiff", unit: "years", args: [{ ref: ["birthDate"] }, { op: "now" }] } } },
+    { name: "tier", kind: "string", required: false, computed: { expression: { op: "lookup", on: { ref: ["profile"] }, table: { a: "Standard" }, default: { const: "Unknown" } } } },
     { name: "tax", kind: "number", required: false, hidden: true, computed: { source: "tax", dependsOn: [["lines"]] } },
     { name: "birthDate", kind: "date", required: false, disabled: true },
     {
@@ -79,6 +80,14 @@ describe("validateDefinition", () => {
     const def = {
       id: "x",
       fields: [{ name: "a", kind: "number", computed: { expression: { op: "avg", args: [] } } }],
+    };
+    expect(() => validateDefinition(def)).toThrow();
+  });
+
+  it("rejects a lookup whose table is not an object", () => {
+    const def = {
+      id: "x",
+      fields: [{ name: "a", kind: "string", computed: { expression: { op: "lookup", on: { ref: ["a"] }, table: "not-a-table" } } }],
     };
     expect(() => validateDefinition(def)).toThrow();
   });
