@@ -67,9 +67,12 @@ type FieldOutput<F> =
     : unknown)
   | (F extends { nullable: true } ? null : never);
 
+/** Transient fields are stripped from the parsed values, so they never reach the payload type. */
+type SubmittedFields<FS extends readonly FieldDefinition[]> = Exclude<FS[number], { transient: true }>;
+
 type FieldsOutput<FS extends readonly FieldDefinition[], C extends string> = Prettify<
-  { [F in FS[number] as IsOptionalField<F, C> extends true ? never : F["name"]]: FieldOutput<F> } &
-  { [F in FS[number] as IsOptionalField<F, C> extends true ? F["name"] : never]?: FieldOutput<F> }
+  { [F in SubmittedFields<FS> as IsOptionalField<F, C> extends true ? never : F["name"]]: FieldOutput<F> } &
+  { [F in SubmittedFields<FS> as IsOptionalField<F, C> extends true ? F["name"] : never]?: FieldOutput<F> }
 >;
 
 /**

@@ -359,6 +359,34 @@ describe("DynamicForm multiple enums", () => {
   });
 });
 
+describe("DynamicForm transient fields", () => {
+  it("delivers submit values without the transient fields", async () => {
+    const definition: FormDefinition = {
+      id: "form-transient",
+      fields: [
+        { name: "size", kind: "string", required: false, initial: "M" },
+        {
+          name: "hex", kind: "string", required: false, hidden: true, transient: true,
+          computed: { expression: { op: "lookup", on: { ref: ["size"] }, table: { M: "#1d4ed8" } } },
+        },
+      ],
+    };
+    const onSubmit = vi.fn();
+    const wrapper = mount(DynamicForm, { props: { definition, onSubmit } });
+    await settle();
+
+    const form = (wrapper.vm as unknown as { form: DynamicFormStore }).form;
+    // the store still holds it — the page can render from it
+    expect(readInput(form, ["hex"])).toBe("#1d4ed8");
+
+    await wrapper.find("form").trigger("submit");
+    await settle(5);
+
+    // ...but the parsed values do not
+    expect(onSubmit.mock.calls[0]![0]).toEqual({ size: "M" });
+  });
+});
+
 describe("DynamicForm composed interactions", () => {
   // the product-page pattern: cascading options feed a computed field
   it("recomputes and reconciles when a cascade dependency changes", async () => {

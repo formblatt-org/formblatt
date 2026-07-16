@@ -14,6 +14,7 @@ const definition = defineFormDefinition({
     { name: "terms", kind: "boolean" },
     { name: "color", kind: "enum", options: [{ label: "Red", value: "red" }, { label: "Blue", value: "blue" }] },
     { name: "fullName", kind: "string", computed: { expression: { const: "" } } },
+    { name: "badge", kind: "string", required: false, transient: true },
     { name: "secret", kind: "string" },
     {
       name: "address", kind: "object", fields: [
@@ -49,12 +50,14 @@ describe("InferFormOutput", () => {
 
     // @ts-expect-error — "green" is not among the declared options
     const wrongEnum: Output = { ...payload, color: "green" };
+    // @ts-expect-error — transient fields are stripped from the parsed values, so the payload type omits them
+    const withTransient: Output = { ...payload, badge: "x" };
     // @ts-expect-error — firstName is required in the payload
     const missingRequired: Output = { age: 1, terms: true, color: "red", address: { city: "x" }, lines: [] };
     // @ts-expect-error — qty must be a number
     const wrongRowType: Output = { ...payload, lines: [{ qty: "2" }] };
 
-    expect([wrongEnum, missingRequired, wrongRowType]).toBeDefined();
+    expect([wrongEnum, withTransient, missingRequired, wrongRowType]).toBeDefined();
   });
 
   it("types the onSubmit prop of the typed DynamicForm", () => {
