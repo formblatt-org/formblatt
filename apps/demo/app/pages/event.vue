@@ -50,20 +50,15 @@ const eventDefinition: FormDefinition = {
           },
           { name: "age", kind: "number", control: "number", required: false },
           {
+            // a lookup table instead of nested ifs — and the lint checks the
+            // keys against the ticket enum's options, which ifs never could be
             name: "price", kind: "number", required: false,
             computed: {
               expression: {
-                if: { path: ["ticket"], op: "eq", value: "adult" },
-                then: { const: 49 },
-                else: {
-                  if: { path: ["ticket"], op: "eq", value: "student" },
-                  then: { const: 25 },
-                  else: {
-                    if: { path: ["ticket"], op: "eq", value: "child" },
-                    then: { const: 10 },
-                    else: { const: 0 },
-                  },
-                },
+                op: "lookup",
+                on: { ref: ["ticket"] },
+                table: { adult: 49, student: 25, child: 10 },
+                default: { const: 0 },
               },
             },
           },
