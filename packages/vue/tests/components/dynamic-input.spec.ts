@@ -53,6 +53,16 @@ describe("DynamicInput value normalization", () => {
     expect(lastInput(wrapper)).toBeUndefined();
   });
 
+  it("renders control: textarea as a real <textarea>, not <input type='textarea'>", async () => {
+    const wrapper = mountInput({ kind: "string", control: "textarea" });
+
+    expect(wrapper.find("textarea").exists()).toBe(true);
+    expect(wrapper.find("input").exists()).toBe(false);
+
+    await wrapper.find("textarea").setValue("multi\nline");
+    expect(lastInput(wrapper)).toBe("multi\nline");
+  });
+
   it("emits the checkbox state as a boolean", async () => {
     const wrapper = mountInput({ kind: "boolean", control: "checkbox" });
 

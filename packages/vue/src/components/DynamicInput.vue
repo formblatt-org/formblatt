@@ -78,7 +78,7 @@ const onCheckboxChange = (event: Event) => {
 };
 
 const onTextInput = (event: Event) => {
-  emit("update:input", (event.target as HTMLInputElement).value);
+  emit("update:input", (event.target as HTMLInputElement | HTMLTextAreaElement).value);
 };
 </script>
 
@@ -149,6 +149,10 @@ const onTextInput = (event: Event) => {
         <input v-else-if="field.control === 'number'" type="number" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :value="input" @input="onNumberInput" />
 
+        <!-- a real <textarea> — through the generic branch it would become <input type="textarea">, which browsers render as a single-line text input -->
+        <textarea v-else-if="field.control === 'textarea'" v-bind="{ ...fieldProps, ...aria }"
+            :disabled="isDisabled" :value="(input as string | undefined)" @input="onTextInput" />
+
         <input v-else :type="field.control ?? 'text'" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :value="input" @input="onTextInput" />
     </label>
@@ -212,7 +216,8 @@ const onTextInput = (event: Event) => {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   box-sizing: border-box;
   padding: .5rem .625rem;
@@ -225,8 +230,14 @@ const onTextInput = (event: Event) => {
   transition: border-color .15s, box-shadow .15s;
 }
 
+.field textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: none;
   border-color: #4f46e5;
   box-shadow: 0 0 0 3px rgba(79, 70, 229, .15);
@@ -239,7 +250,8 @@ const onTextInput = (event: Event) => {
 }
 
 .field input:disabled,
-.field select:disabled {
+.field select:disabled,
+.field textarea:disabled {
   color: #9ca3af;
   background: #f3f4f6;
   cursor: not-allowed;
