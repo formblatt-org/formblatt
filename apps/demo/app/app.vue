@@ -3,9 +3,17 @@
 <template>
   <div class="app-shell">
     <nav class="app-nav">
-      <NuxtLink to="/">JSON schema form</NuxtLink>
+      <NuxtLink to="/">Home</NuxtLink>
+      <NuxtLink to="/account">Account</NuxtLink>
       <NuxtLink to="/checkout">Checkout</NuxtLink>
       <NuxtLink to="/cart">Cart</NuxtLink>
+      <NuxtLink to="/todos">Todos</NuxtLink>
+      <NuxtLink to="/careers">Job application</NuxtLink>
+      <NuxtLink to="/signup">Sign up</NuxtLink>
+      <NuxtLink to="/settings">Settings</NuxtLink>
+      <NuxtLink to="/survey">Survey</NuxtLink>
+      <NuxtLink to="/contact">Contact</NuxtLink>
+      <NuxtLink to="/playground">Playground</NuxtLink>
     </nav>
     <NuxtPage />
   </div>
@@ -40,7 +48,8 @@ body {
   color: #1f2937;
 }
 
-.app-nav a.router-link-active {
+/* exact: the "/" home link would otherwise count as active on every route */
+.app-nav a.router-link-exact-active {
   color: #4f46e5;
 }
 </style>
