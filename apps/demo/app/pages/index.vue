@@ -47,7 +47,7 @@ const DEMOS = [
     to: "/survey",
     title: "Product feedback",
     scenario: "A survey using every control flavor.",
-    features: ["custom control registry", "radio group", "multi-select enum", "touched-gated errors"],
+    features: ["custom control registry", "radio group", "multi-enum checkboxes", "touched-gated errors"],
   },
   {
     to: "/contact",

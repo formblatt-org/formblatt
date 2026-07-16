@@ -6,7 +6,7 @@ import StarRating from "../components/StarRating.vue";
 
 /**
  * Every control flavor in one form: a host-registered star rating (the
- * `controls` registry), a radio group, a multi-select enum and a textarea —
+ * `controls` registry), a radio group, a multi-enum checkbox group and a textarea —
  * with `errorDisplay: "touched"`, so validating from mount never yells at an
  * untouched field.
  */
@@ -29,8 +29,8 @@ const surveyDefinition: FormDefinition = {
       ],
     },
     {
-      // `multiple` stores a string[] — rendered as a multi-select
-      name: "usedFeatures", kind: "enum", multiple: true, control: "select", label: "Which capabilities do you use?",
+      // `multiple` stores a string[] — rendered as a checkbox group
+      name: "usedFeatures", kind: "enum", multiple: true, label: "Which capabilities do you use?",
       requiredMessage: "Pick at least one",
       options: [
         { label: "Validation rules", value: "validation" },
@@ -69,8 +69,8 @@ const sendFeedback = (values: unknown) => {
     <h1>Product feedback</h1>
     <p class="tagline">
       A survey built from the open control set: a custom star-rating control registered via
-      <code>controls</code>, a radio group, a multi-select enum — errors stay hidden until a
-      field was touched.
+      <code>controls</code>, a radio group, a multi-enum checkbox group — errors stay hidden
+      until a field was touched.
     </p>
 
     <div v-if="submitted" class="thanks">
