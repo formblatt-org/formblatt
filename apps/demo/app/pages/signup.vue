@@ -40,8 +40,8 @@ const signupDefinition: FormDefinition = {
  * `rules` prop, addressable from the JSON definition like any built-in.
  */
 const rules: Record<string, ValidationFactory> = {
-  passwordStrength: rule => v.check<string>(
-    value => {
+  passwordStrength: rule => v.check(
+    (value: string) => {
       const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(re => re.test(value)).length;
       return classes >= ((rule.value as number) ?? 3);
     },
