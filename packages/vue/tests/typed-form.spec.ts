@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defineFormDefinition, type InferFormOutput } from "../src/typed-form";
+import { createTypedForm, defineFormDefinition, type InferFormOutput } from "../src/typed-form";
 
 /**
  * Compile-time contract of InferFormOutput — vue-tsc fails this file when the
@@ -55,5 +55,17 @@ describe("InferFormOutput", () => {
     const wrongRowType: Output = { ...payload, lines: [{ qty: "2" }] };
 
     expect([wrongEnum, missingRequired, wrongRowType]).toBeDefined();
+  });
+
+  it("types the onSubmit prop of the typed DynamicForm", () => {
+    const { DynamicForm } = createTypedForm(definition);
+    type FormProps = InstanceType<typeof DynamicForm>["$props"];
+
+    // a handler typed against the definition must be assignable — this is the
+    // case WithReplacedProps exists for; an intersected onSubmit would demand
+    // the untyped SubmitHandler signature too and reject every typed handler
+    const handler: FormProps["onSubmit"] = values => values.address.city;
+
+    expect(handler).toBeDefined();
   });
 });

@@ -90,6 +90,20 @@ export type InferFormOutput<T extends FormDefinition> =
  */
 type WithProps<C, TProps> = C & (new (...args: any[]) => { $props: TProps });
 
+/**
+ * REPLACES $props keys instead of intersecting them. Intersection is right
+ * for narrowing `string` to a literal union, but wrong for a function prop:
+ * a handler intersected with a narrower signature demands BOTH signatures
+ * from the value assigned to it, which no single function satisfies. The
+ * rebuilt constructor keeps slots, emits and exposed members.
+ */
+type WithReplacedProps<C, TProps> =
+  C extends new (...args: infer A) => infer I
+    ? I extends { $props: infer P }
+      ? new (...args: A) => Omit<I, "$props"> & { $props: Omit<P, keyof TProps> & TProps }
+      : C
+    : C;
+
 /** Preserves a definition literal's names in its type for the typed components. Identity at runtime. */
 export function defineFormDefinition<const T extends FormDefinition>(definition: T): T {
   return definition;
@@ -105,7 +119,7 @@ export function defineFormDefinition<const T extends FormDefinition>(definition:
 export function createTypedForm<const T extends FormDefinition>(definition: T) {
   return {
     definition,
-    DynamicForm: DynamicForm as WithProps<typeof DynamicForm, {
+    DynamicForm: DynamicForm as WithReplacedProps<typeof DynamicForm, {
       onSubmit?: (values: InferFormOutput<T>, context: SubmitContext) => unknown | Promise<unknown>;
     }>,
     DynamicLayout,
