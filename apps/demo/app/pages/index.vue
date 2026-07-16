@@ -8,6 +8,12 @@ const DEMOS = [
     features: ["populate lookups", "cascading selects", "computed fields", "visibility affects", "external submit"],
   },
   {
+    to: "/product",
+    title: "Product page",
+    scenario: "A t-shirt with size and color variants — the page follows the computed SKU.",
+    features: ["cascading variants", "computed SKU", "qty min/max", "validity-gated action"],
+  },
+  {
     to: "/checkout",
     title: "Checkout",
     scenario: "A storefront checkout with order lines, billing toggle and live totals.",

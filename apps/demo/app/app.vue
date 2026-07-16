@@ -5,6 +5,7 @@
     <nav class="app-nav">
       <NuxtLink to="/">Home</NuxtLink>
       <NuxtLink to="/account">Account</NuxtLink>
+      <NuxtLink to="/product">Product</NuxtLink>
       <NuxtLink to="/checkout">Checkout</NuxtLink>
       <NuxtLink to="/cart">Cart</NuxtLink>
       <NuxtLink to="/todos">Todos</NuxtLink>
