@@ -17,7 +17,7 @@ import {
   buildFormSchema,     // definition → Valibot schema for the WHOLE form
   buildInitialInput,   // the declared `initial` values
   evaluate,            // conditions ({ path, op, value }, and/or/not)
-  evalExpression,      // computed-value expressions (concat, arithmetic, dateDiff …)
+  evalExpression,      // computed-value expressions (concat, arithmetic, lookup tables, dateDiff …)
   compileAffects,      // visibility rules per targeted field
   normalizeLayout,     // layout + orphans, objects flattened to dotted leaves
   lintDefinition,      // standalone lint, if you validate server-side
