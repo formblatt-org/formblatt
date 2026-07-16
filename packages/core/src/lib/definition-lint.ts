@@ -267,6 +267,9 @@ function lintFields(
         if (location !== "fields") {
           warning(issues, here, "nested arrays validate but the built-in components cannot render them");
         }
+        if (field.item.transient) {
+          warning(issues, here, "transient on the array item strips nothing — mark the array itself, or individual item fields");
+        }
         lintFields(definition, [field.item], `${here}.item`, true, issues, context);
         break;
 

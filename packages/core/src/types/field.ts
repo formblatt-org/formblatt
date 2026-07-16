@@ -74,6 +74,15 @@ interface BaseField {
   disabled?: boolean;
   /** Allows `null` as a value. */
   nullable?: boolean;
+  /**
+   * Defaults to `false`. The field lives in the form — rendered, validated,
+   * readable through the store — but is STRIPPED from the parsed values a
+   * submit delivers. For derived-for-display state (a looked-up color swatch,
+   * a computed summary line) that must not leak into the data contract. On an
+   * object or array it strips the whole subtree; inside an array item it
+   * strips the key from every row.
+   */
+  transient?: boolean;
   /** Content validations, applied in order after the kind's base check. */
   validations?: readonly ValidationRule[]
 }

@@ -89,6 +89,7 @@ const baseFieldEntries = {
   hidden: v.optional(v.boolean()),
   disabled: v.optional(v.boolean()),
   nullable: v.optional(v.boolean()),
+  transient: v.optional(v.boolean()),
   validations: v.optional(v.array(ValidationRuleSchema)),
 };
 

@@ -501,6 +501,57 @@ describe("remote validation rules", () => {
   });
 });
 
+describe("transient fields", () => {
+  const def: FormDefinition = {
+    id: "transient-fixture",
+    fields: [
+      { name: "size", kind: "string" },
+      { name: "hex", kind: "string", required: false, transient: true },
+      {
+        name: "meta", kind: "object", fields: [
+          { name: "keep", kind: "string", required: false },
+          { name: "hint", kind: "string", required: false, transient: true },
+        ],
+      },
+      {
+        name: "lines", kind: "array", item: {
+          name: "line", kind: "object", fields: [
+            { name: "qty", kind: "number" },
+            { name: "rowNote", kind: "string", required: false, transient: true },
+          ],
+        },
+      },
+      { name: "scratch", kind: "array", required: false, transient: true, item: { name: "s", kind: "string" } },
+    ],
+  };
+  const schema = buildFormSchema(def);
+
+  it("strips transient fields from the parsed output — top-level, object-nested, per array row, whole arrays", () => {
+    const result = v.safeParse(schema as v.GenericSchema<Record<string, unknown>>, {
+      size: "M",
+      hex: "#1d4ed8",
+      meta: { keep: "yes", hint: "display only" },
+      lines: [{ qty: 1, rowNote: "a" }, { qty: 2, rowNote: "b" }],
+      scratch: ["tmp"],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual({
+      size: "M",
+      meta: { keep: "yes" },
+      lines: [{ qty: 1 }, { qty: 2 }],
+    });
+  });
+
+  it("still validates transient fields — stripped from the output, not from the rules", () => {
+    const strict: FormDefinition = {
+      id: "transient-validated",
+      fields: [{ name: "hex", kind: "string", transient: true, validations: [{ type: "regex", value: "^#", message: "Not a color" }] }],
+    };
+    expect(run(buildFormSchema(strict), { hex: "oops" })).toEqual(["Not a color @ hex"]);
+  });
+});
+
 describe("buildInitialInput", () => {
   const def: FormDefinition = {
     id: "init-fixture",

@@ -17,6 +17,7 @@ const kitchenSink: FormDefinition = {
     { name: "fullName", kind: "string", required: false, computed: { expression: { op: "concat", sep: " ", args: [{ ref: ["email"] }, { const: "x" }] } } },
     { name: "age", kind: "number", required: false, computed: { expression: { op: "dateDiff", unit: "years", args: [{ ref: ["birthDate"] }, { op: "now" }] } } },
     { name: "tier", kind: "string", required: false, computed: { expression: { op: "lookup", on: { ref: ["profile"] }, table: { a: "Standard" }, default: { const: "Unknown" } } } },
+    { name: "tierBadge", kind: "string", required: false, transient: true },
     { name: "tax", kind: "number", required: false, hidden: true, computed: { source: "tax", dependsOn: [["lines"]] } },
     { name: "birthDate", kind: "date", required: false, disabled: true },
     {

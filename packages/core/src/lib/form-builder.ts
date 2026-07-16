@@ -188,7 +188,11 @@ export function buildFormSchema(
     validationResolver: options?.validationResolver,
   };
   const root = context.kit.object(buildEntries(definition.fields, [], context));
-  return withRequiredWhenVisible(root, definition, context) as FormSchema;
+  return withTransientStripped(
+    withRequiredWhenVisible(root, definition, context),
+    definition,
+    context,
+  ) as FormSchema;
 }
 
 /** Whether any field declares a `remote` rule — the whole schema goes async then. */
@@ -392,6 +396,49 @@ function withRequiredWhenVisible(
     const action = v.check(filledWhenVisible, field.requiredMessage ?? context.requiredMessage);
     return context.kit.pipe(schema, context.kit.forward(action, field.path));
   }, root);
+}
+
+/**
+ * Strips `transient` fields from the parsed output — they are form state,
+ * never submitted data. Runs LAST in the pipe, after every validation and the
+ * required-when-visible checks, so all rules still see the full data.
+ */
+function withTransientStripped(
+  root: GenericSchema,
+  definition: FormDefinition,
+  context: BuildContext,
+): GenericSchema {
+  if (!hasTransientFields(definition.fields)) return root;
+
+  return context.kit.pipe(root, v.transform(output => {
+    stripTransient(definition.fields, output);
+    return output;
+  }));
+}
+
+function hasTransientFields(fields: readonly FieldDefinition[]): boolean {
+  return fields.some(field =>
+    field.transient ||
+    (field.kind === "object" && hasTransientFields(field.fields)) ||
+    (field.kind === "array" && field.item.kind === "object" && hasTransientFields(field.item.fields)));
+}
+
+/** Deletes transient keys from the parse output, per row inside arrays. Mutates — the output is this parse's own object tree. */
+function stripTransient(fields: readonly FieldDefinition[], data: unknown): void {
+  if (typeof data !== "object" || data === null) return;
+  const record = data as Record<string, unknown>;
+
+  for (const field of fields) {
+    if (field.transient) {
+      delete record[field.name];
+    } else if (field.kind === "object") {
+      stripTransient(field.fields, record[field.name]);
+    } else if (field.kind === "array" && field.item.kind === "object") {
+      const itemFields = field.item.fields;
+      const rows = record[field.name];
+      if (Array.isArray(rows)) rows.forEach(row => stripTransient(itemFields, row));
+    }
+  }
 }
 
 /**

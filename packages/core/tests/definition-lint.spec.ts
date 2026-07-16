@@ -234,6 +234,20 @@ describe("computed and dynamic options", () => {
   });
 });
 
+describe("transient fields", () => {
+  it("warns when the array ITEM is transient — the builder strips nothing there", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [{
+        name: "lines", kind: "array", item: {
+          name: "line", kind: "object", transient: true, fields: [{ name: "qty", kind: "number" }],
+        },
+      }],
+    };
+    expect(lint(def, "warning")).toEqual([expect.stringContaining("transient on the array item strips nothing")]);
+  });
+});
+
 describe("lookup tables", () => {
   const withLookup = (expression: unknown): FormDefinition => ({
     id: "x",
