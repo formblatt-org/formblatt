@@ -6,6 +6,8 @@ Vue 3 bindings for [formblatt](https://github.com/formblatt-org/formblatt): head
 pnpm add @formblatt/vue @formblatt/core @formisch/vue valibot
 ```
 
+> **Note on `@formisch/vue`:** the store, validation pipeline and field binding delegate to formisch, which is currently a release candidate. The peer range is pinned **exactly** to `1.0.0-rc.0` — RC releases may change semantics between versions, so the pin only widens once formisch reaches a stable 1.0. Every formisch call goes through one module (`form-store.ts`), which is where any API change gets absorbed.
+
 ## Quick start
 
 ```vue
