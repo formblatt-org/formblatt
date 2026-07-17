@@ -65,6 +65,13 @@ export interface BuildFormSchemaOptions {
    * it such rules are skipped with a warning. See {@link ValidationResolver}.
    */
   validationResolver?: ValidationResolver;
+  /**
+   * What a REJECTED remote lookup counts as. `"pass"` (the default) treats it
+   * as valid — availability must not block submits. `"fail"` reports the
+   * rule's message instead — for checks where letting an unverified value
+   * through is worse than blocking (a payment reference, a compliance id).
+   */
+  remoteFailure?: "pass" | "fail";
 }
 
 /** What every schema-building step needs — threaded instead of N loose params. */
@@ -75,6 +82,7 @@ interface BuildContext {
   kit: SchemaKit;
   customRules: Record<string, ValidationFactory>;
   validationResolver?: ValidationResolver;
+  remoteFailure: "pass" | "fail";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- actions from arbitrary registries cannot be statically typed
@@ -190,6 +198,7 @@ export function buildFormSchema(
     kit: hasRemoteRules(definition.fields) ? ASYNC_KIT : SYNC_KIT,
     customRules: options?.rules ?? {},
     validationResolver: options?.validationResolver,
+    remoteFailure: options?.remoteFailure ?? "pass",
   };
   const root = context.kit.object(buildEntries(definition.fields, [], context));
   return withTransientStripped(
@@ -500,8 +509,10 @@ function interpolate(template: string, params: Record<string, unknown>): string 
 
 /**
  * A host-resolved, possibly async check — `rule.value` is the routing key.
- * Empty values pass (that is `required`'s job), and a rejected lookup passes
- * too, with the failure reported: availability must not block submits.
+ * Empty values pass (that is `required`'s job). A REJECTED lookup follows the
+ * `remoteFailure` policy: `"pass"` (default) reports the failure and lets the
+ * value through — availability must not block submits — while `"fail"`
+ * reports the rule's message as a validation error.
  */
 function toRemoteAction(rule: ValidationRule, context: BuildContext): ValidationAction | undefined {
   const resolve = context.validationResolver;
@@ -520,7 +531,12 @@ function toRemoteAction(rule: ValidationRule, context: BuildContext): Validation
       if (verdict === true || verdict === undefined) return;
       addIssue({ message: typeof verdict === "string" ? verdict : rule.message ?? DEFAULT_REMOTE_MESSAGE });
     } catch (cause) {
-      reportError("definition", `remote validation "${source}" failed — treated as valid`, cause);
+      if (context.remoteFailure === "fail") {
+        reportError("definition", `remote validation "${source}" failed — treated as invalid (remoteFailure: "fail")`, cause);
+        addIssue({ message: rule.message ?? DEFAULT_REMOTE_MESSAGE });
+      } else {
+        reportError("definition", `remote validation "${source}" failed — treated as valid`, cause);
+      }
     }
   }) as unknown as ValidationAction;
 }

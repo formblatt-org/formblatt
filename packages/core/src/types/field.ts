@@ -30,9 +30,11 @@ export interface ValidationRule {
  * routing key (`rule.value`) and the field's current value; never called for
  * empty values (that is `required`'s job). Return `true`/`undefined` for
  * valid, `false` for invalid with the rule's message, or a string to use as
- * the message. A rejected promise is reported and treated as valid —
- * availability must not block submits. Hosts should cache: the check runs on
- * every validation pass of the form.
+ * the message. A rejected promise is reported and, by default, treated as
+ * valid — availability must not block submits; `buildFormSchema`'s
+ * `remoteFailure: "fail"` option inverts that for checks where an unverified
+ * value is worse. Hosts should cache: the check runs on every validation pass
+ * of the form.
  */
 export type ValidationResolver = (
   source: string,

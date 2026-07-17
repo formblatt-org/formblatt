@@ -61,6 +61,13 @@ const props = defineProps<{
   resolveComputed?: ComputedResolver;
   /** Required only when the definition declares `remote` validation rules. */
   resolveValidation?: ValidationResolver;
+  /**
+   * What a REJECTED remote lookup counts as: `"pass"` (default) lets the value
+   * through — availability must not block submits — `"fail"` reports the
+   * rule's message. Choose `"fail"` where an unverified value is worse than a
+   * blocked submit.
+   */
+  remoteFailure?: "pass" | "fail";
   /** Host-defined validation rules, addressable from any field's `validations` by key. */
   rules?: Record<string, ValidationFactory>;
   /** Host-registered controls by name — a field's `control` outside the built-ins renders these. */
@@ -103,6 +110,7 @@ const buildSchema = (definition: FormDefinition) =>
     messages: props.messages,
     rules: props.rules,
     validationResolver: props.resolveValidation,
+    remoteFailure: props.remoteFailure,
   });
 
 // Migrated, validated and compiled once at setup: a changed definition prop

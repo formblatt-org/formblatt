@@ -491,6 +491,17 @@ describe("remote validation rules", () => {
     errorSpy.mockRestore();
   });
 
+  it("treats a rejected lookup as INVALID under remoteFailure: fail", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const schema = buildFormSchema(def, {
+      validationResolver: () => Promise.reject(new Error("service down")),
+      remoteFailure: "fail",
+    });
+
+    expect(await runAsync(schema, { username: "grace" })).toEqual(["Taken @ username"]);
+    errorSpy.mockRestore();
+  });
+
   it("skips remote rules with a warning when no resolver is given", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const schema = buildFormSchema(def);
