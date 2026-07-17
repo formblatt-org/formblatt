@@ -313,6 +313,9 @@ defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError, definition
 </template>
 
 <style scoped>
+/* Every color/radius reads a --fb-* token with the shipped value as fallback —
+   set the tokens on any ancestor to theme the form (see the README's table). */
+
 /* Only a positioning context on <form> — headless consumers put their own grid inside it. */
 .dynamic-form {
   position: relative;
@@ -320,10 +323,10 @@ defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError, definition
 
 .definition-error {
   padding: 1rem 1.25rem;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 10px;
-  color: #991b1b;
+  background: var(--fb-color-error-bg, #fef2f2);
+  border: 1px solid var(--fb-color-error-border, #fecaca);
+  border-radius: var(--fb-radius-lg, 10px);
+  color: var(--fb-color-error-text, #991b1b);
 }
 
 .definition-error-title {
@@ -354,14 +357,14 @@ defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError, definition
   align-items: center;
   pointer-events: none;
   font-size: .9rem;
-  color: #374151;
+  color: var(--fb-color-label, #374151);
 }
 
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid #d1d5db;
-  border-top-color: #4f46e5;
+  border: 2px solid var(--fb-color-border, #d1d5db);
+  border-top-color: var(--fb-color-primary, #4f46e5);
   border-radius: 50%;
   animation: spin .6s linear infinite;
 }
@@ -381,26 +384,26 @@ defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError, definition
   font: inherit;
   font-size: .9rem;
   font-weight: 550;
-  color: #374151;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  color: var(--fb-color-label, #374151);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
   cursor: pointer;
   transition: background .15s, border-color .15s, opacity .15s;
 }
 
 .btn:hover:not(:disabled) {
-  background: #f9fafb;
+  background: var(--fb-color-surface-hover, #f9fafb);
 }
 
 .btn-primary {
-  color: #fff;
-  background: #4f46e5;
-  border-color: #4f46e5;
+  color: var(--fb-color-primary-contrast, #fff);
+  background: var(--fb-color-primary, #4f46e5);
+  border-color: var(--fb-color-primary, #4f46e5);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #4338ca;
+  background: var(--fb-color-primary-hover, #4338ca);
 }
 
 .btn:disabled {

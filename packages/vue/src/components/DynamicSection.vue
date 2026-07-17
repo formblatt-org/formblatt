@@ -41,9 +41,9 @@ details {
   flex-direction: column;
   gap: .875rem;
   padding: .25rem .875rem .95rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fafafa;
+  border: 1px solid var(--fb-color-border-soft, #e5e7eb);
+  border-radius: var(--fb-radius-lg, 10px);
+  background: var(--fb-color-surface-soft, #fafafa);
 }
 
 summary {

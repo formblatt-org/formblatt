@@ -118,8 +118,8 @@ usePlacedFields([props.name]);
   flex-direction: column;
   gap: .5rem;
   padding: .75rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  border: 1px solid var(--fb-color-border-soft, #e5e7eb);
+  border-radius: var(--fb-radius-lg, 10px);
 }
 
 .btn-row {
@@ -127,22 +127,22 @@ usePlacedFields([props.name]);
   padding: .35rem .75rem;
   font: inherit;
   font-size: .85rem;
-  color: #374151;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  color: var(--fb-color-label, #374151);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
   cursor: pointer;
 }
 
 .btn-row:hover {
-  background: #f9fafb;
+  background: var(--fb-color-surface-hover, #f9fafb);
 }
 
 .array-errors {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: #dc2626;
+  color: var(--fb-color-error, #dc2626);
   font-size: .8rem;
 }
 </style>

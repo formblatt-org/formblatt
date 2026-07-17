@@ -188,6 +188,8 @@ const onTextInput = (event: Event) => {
 </template>
 
 <style scoped>
+/* Every color/radius reads a --fb-* token with the shipped value as fallback — see the README. */
+
 .field label {
   display: block;
 }
@@ -199,14 +201,14 @@ const onTextInput = (event: Event) => {
   margin-bottom: .35rem;
   font-size: .85rem;
   font-weight: 550;
-  color: #374151;
+  color: var(--fb-color-label, #374151);
 }
 
 .spinner-sm {
   width: 11px;
   height: 11px;
-  border: 2px solid #e5e7eb;
-  border-top-color: #4f46e5;
+  border: 2px solid var(--fb-color-border-soft, #e5e7eb);
+  border-top-color: var(--fb-color-primary, #4f46e5);
   border-radius: 50%;
   animation: spin .6s linear infinite;
 }
@@ -222,8 +224,8 @@ const onTextInput = (event: Event) => {
   margin-top: -6px; /* half the height — avoids translateY, which the spin keyframe would overwrite */
   width: 12px;
   height: 12px;
-  border: 2px solid #d1d5db;
-  border-top-color: #4f46e5;
+  border: 2px solid var(--fb-color-border, #d1d5db);
+  border-top-color: var(--fb-color-primary, #4f46e5);
   border-radius: 50%;
   animation: spin .6s linear infinite;
   pointer-events: none;
@@ -246,10 +248,10 @@ const onTextInput = (event: Event) => {
   padding: .5rem .625rem;
   font: inherit;
   font-size: .9rem;
-  color: #1f2937;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  color: var(--fb-color-text, #1f2937);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
   transition: border-color .15s, box-shadow .15s;
 }
 
@@ -262,8 +264,8 @@ const onTextInput = (event: Event) => {
 .field select:focus,
 .field textarea:focus {
   outline: none;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, .15);
+  border-color: var(--fb-color-primary, #4f46e5);
+  box-shadow: var(--fb-focus-ring, 0 0 0 3px rgba(79, 70, 229, .15));
 }
 
 .field input[type="checkbox"] {
@@ -275,8 +277,8 @@ const onTextInput = (event: Event) => {
 .field input:disabled,
 .field select:disabled,
 .field textarea:disabled {
-  color: #9ca3af;
-  background: #f3f4f6;
+  color: var(--fb-color-disabled-text, #9ca3af);
+  background: var(--fb-color-disabled-bg, #f3f4f6);
   cursor: not-allowed;
 }
 
@@ -296,7 +298,7 @@ const onTextInput = (event: Event) => {
   padding: 0;
   font-size: .85rem;
   font-weight: 550;
-  color: #374151;
+  color: var(--fb-color-label, #374151);
 }
 
 /* .field .radio-option outranks `.field label`, whose display: block would defeat the flex row */
@@ -307,7 +309,7 @@ const onTextInput = (event: Event) => {
   gap: .45rem;
   padding: .15rem 0;
   font-size: .9rem;
-  color: #1f2937;
+  color: var(--fb-color-text, #1f2937);
   cursor: pointer;
 }
 
@@ -324,13 +326,13 @@ const onTextInput = (event: Event) => {
   margin: .4rem 0 0;
   padding: 0;
   list-style: none;
-  color: #dc2626;
+  color: var(--fb-color-error, #dc2626);
   font-size: .8rem;
 }
 
 .field-load-error {
   margin: .4rem 0 0;
-  color: #b45309;
+  color: var(--fb-color-warning, #b45309);
   font-size: .8rem;
 }
 </style>

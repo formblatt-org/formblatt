@@ -98,14 +98,14 @@ const onNext = async () => {
 
 .step-indicator {
   font-size: .8rem;
-  color: #6b7280;
+  color: var(--fb-color-muted, #6b7280);
 }
 
 .page-title {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--fb-color-text, #1f2937);
 }
 
 .page-nav {
@@ -119,25 +119,25 @@ const onNext = async () => {
   font: inherit;
   font-size: .9rem;
   font-weight: 550;
-  color: #374151;
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  color: var(--fb-color-label, #374151);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
   cursor: pointer;
   transition: background .15s, border-color .15s;
 }
 
 .btn:hover {
-  background: #f9fafb;
+  background: var(--fb-color-surface-hover, #f9fafb);
 }
 
 .btn-primary {
-  color: #fff;
-  background: #4f46e5;
-  border-color: #4f46e5;
+  color: var(--fb-color-primary-contrast, #fff);
+  background: var(--fb-color-primary, #4f46e5);
+  border-color: var(--fb-color-primary, #4f46e5);
 }
 
 .btn-primary:hover {
-  background: #4338ca;
+  background: var(--fb-color-primary-hover, #4338ca);
 }
 </style>

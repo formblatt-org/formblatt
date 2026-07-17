@@ -41,6 +41,44 @@ const definition = {
 
 Interaction rules come from the definition: visibility affects (`show` / `hide` / `hideAndClear`), `populate` lookups that write many fields and revert cleanly, cascading dynamic options (country → state), and computed fields — synchronous expressions or async host-resolved sources, per-row inside arrays. Submit is gated while any of that is in flight, a failed submit focuses the first invalid control, and `is-dirty` (slot prop / expose) drives unsaved-changes guards.
 
+## Theming
+
+Every color and radius in the built-in components reads a `--fb-*` custom property, with the shipped value as fallback — set the tokens on any ancestor (`:root`, a page, one form) and the whole form follows. No `:deep()` overrides needed.
+
+```css
+:root {
+  --fb-color-primary: #0f766e;
+  --fb-color-primary-hover: #115e59;
+  --fb-radius: 6px;
+}
+```
+
+| Token | Default | Used for |
+| --- | --- | --- |
+| `--fb-color-primary` | `#4f46e5` | buttons, focus border, spinners, active accents |
+| `--fb-color-primary-hover` | `#4338ca` | primary button hover |
+| `--fb-color-primary-contrast` | `#fff` | text on primary |
+| `--fb-color-text` | `#1f2937` | control text, page titles |
+| `--fb-color-label` | `#374151` | field labels, secondary buttons |
+| `--fb-color-muted` | `#6b7280` | step indicator |
+| `--fb-color-border` | `#d1d5db` | control and button borders |
+| `--fb-color-border-soft` | `#e5e7eb` | section and array-row borders |
+| `--fb-color-surface` | `#fff` | control and button backgrounds |
+| `--fb-color-surface-soft` | `#fafafa` | section background |
+| `--fb-color-surface-hover` | `#f9fafb` | secondary button hover |
+| `--fb-color-disabled-text` | `#9ca3af` | disabled control text |
+| `--fb-color-disabled-bg` | `#f3f4f6` | disabled control background |
+| `--fb-color-error` | `#dc2626` | validation error text |
+| `--fb-color-warning` | `#b45309` | the load-failed line |
+| `--fb-color-error-bg` | `#fef2f2` | rejected-definition box background |
+| `--fb-color-error-border` | `#fecaca` | rejected-definition box border |
+| `--fb-color-error-text` | `#991b1b` | rejected-definition box text |
+| `--fb-focus-ring` | `0 0 0 3px rgba(79, 70, 229, .15)` | focused control shadow |
+| `--fb-radius` | `8px` | controls and buttons |
+| `--fb-radius-lg` | `10px` | sections, array rows, error box |
+
+The scoped class names (`.field`, `.field-errors`, …) are implementation detail, not API — target the tokens, not the classes.
+
 ## When things fail
 
 - **A rejected definition renders an error state, not a crash.** Served JSON that fails migration, the shape check or the lint renders an error box (detail shown in dev builds only), fires `@error` with the reason, and exposes `definitionError`. Override the box via the `#error="{ error }"` slot.
