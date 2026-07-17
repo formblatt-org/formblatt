@@ -13,6 +13,10 @@ const definition = defineFormDefinition({
     { name: "age", kind: "number", nullable: true },
     { name: "terms", kind: "boolean" },
     { name: "color", kind: "enum", options: [{ label: "Red", value: "red" }, { label: "Blue", value: "blue" }] },
+    {
+      name: "toppings", kind: "enum", multiple: true,
+      options: [{ label: "Cheese", value: "cheese" }, { label: "Basil", value: "basil" }],
+    },
     { name: "fullName", kind: "string", computed: { expression: { const: "" } } },
     { name: "badge", kind: "string", required: false, transient: true },
     { name: "secret", kind: "string" },
@@ -42,6 +46,7 @@ describe("InferFormOutput", () => {
       age: null,                 // nullable admits null
       terms: false,              // boolean
       color: "red",              // static enum narrows to its option values
+      toppings: ["cheese"],      // a multiple enum submits a LIST of its option values
       address: { city: "Berlin" }, // nested object, its optional child omitted
       lines: [{ qty: 2 }],       // array of item outputs
       // nickname (required: false), fullName (computed) and secret (affect target) may be absent
@@ -50,6 +55,10 @@ describe("InferFormOutput", () => {
 
     // @ts-expect-error — "green" is not among the declared options
     const wrongEnum: Output = { ...payload, color: "green" };
+    // @ts-expect-error — a multiple enum submits an array, not a single choice
+    const scalarMulti: Output = { ...payload, toppings: "cheese" };
+    // @ts-expect-error — the list narrows to the declared option values
+    const wrongMulti: Output = { ...payload, toppings: ["pineapple"] };
     // @ts-expect-error — transient fields are stripped from the parsed values, so the payload type omits them
     const withTransient: Output = { ...payload, badge: "x" };
     // @ts-expect-error — firstName is required in the payload
@@ -57,7 +66,7 @@ describe("InferFormOutput", () => {
     // @ts-expect-error — qty must be a number
     const wrongRowType: Output = { ...payload, lines: [{ qty: "2" }] };
 
-    expect([wrongEnum, withTransient, missingRequired, wrongRowType]).toBeDefined();
+    expect([wrongEnum, scalarMulti, wrongMulti, withTransient, missingRequired, wrongRowType]).toBeDefined();
   });
 
   it("types the onSubmit prop of the typed DynamicForm", () => {

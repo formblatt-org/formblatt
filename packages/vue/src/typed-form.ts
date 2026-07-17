@@ -56,10 +56,14 @@ type IsOptionalField<F, C extends string> =
     ? true
     : F extends { name: C } ? true : false;
 
-/** The value one field submits. Static enums narrow to their option values. */
+/** One enum choice: a static enum narrows to its option values, a dynamic one is any string. */
+type EnumOutput<F> = F extends { options: infer O extends readonly Option[] } ? O[number]["value"] : string;
+
+/** The value one field submits. A `multiple` enum submits a LIST of its choices. */
 type FieldOutput<F> =
-  | (F extends { kind: "enum"; options: infer O extends readonly Option[] } ? O[number]["value"]
-    : F extends { kind: "string" | "enum" | "date" } ? string
+  | (F extends { kind: "enum"; multiple: true } ? EnumOutput<F>[]
+    : F extends { kind: "enum" } ? EnumOutput<F>
+    : F extends { kind: "string" | "date" } ? string
     : F extends { kind: "number" } ? number
     : F extends { kind: "boolean" } ? boolean
     : F extends { kind: "object"; fields: infer FS extends readonly FieldDefinition[] } ? FieldsOutput<FS, never>
