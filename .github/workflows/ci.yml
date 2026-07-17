@@ -33,3 +33,24 @@ jobs:
 
       - name: Test (with coverage floor)
         run: pnpm test:coverage
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter formblatt-demo exec playwright install --with-deps chromium
+
+      - name: Smoke-test the demo pages
+        run: pnpm e2e

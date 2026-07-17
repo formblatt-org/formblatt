@@ -8,7 +8,8 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "typecheck": "nuxi typecheck"
+    "typecheck": "nuxi typecheck",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@formblatt/core": "workspace:*",
@@ -20,6 +21,7 @@
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "vue-tsc": "^3.3.7"
   }
 }
