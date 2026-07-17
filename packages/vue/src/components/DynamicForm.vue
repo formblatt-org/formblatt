@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, provide, useTemplateRef, type Component, type ComponentPublicInstance } from "vue";
+import { computed, provide, useTemplateRef, watch, type Component, type ComponentPublicInstance } from "vue";
 import { Form, reset, useForm } from "@formisch/vue";
 import {
   buildFormSchema,
@@ -218,19 +218,14 @@ const submitForm = async (values: unknown) => {
 
 const formComponent = useTemplateRef<ComponentPublicInstance>("formEl");
 
-onMounted(() => {
-  const element = formComponent.value?.$el as HTMLFormElement | undefined;
-  element?.addEventListener("submit", () => void focusInvalidAfterSubmit(element));
-});
-
-/** The native submit fires before validation settles — wait it out, then check. */
-async function focusInvalidAfterSubmit(element: HTMLFormElement): Promise<void> {
-  for (let i = 0; i < 3; i++) {
-    await nextTick();
-    await Promise.resolve();
-  }
-  if (!form.isValid) focusFirstInvalid(element);
-}
+// formisch's isSubmitting spans the WHOLE submit pipeline — validation
+// included, however long a remote rule takes — so its falling edge is
+// "submit settled". Post-flush, because the aria-invalid attributes the
+// selector reads render in the same flush as the state change.
+watch(() => form.isSubmitting, (submitting, wasSubmitting) => {
+  if (!wasSubmitting || submitting || form.isValid) return;
+  focusFirstInvalid(formComponent.value?.$el as HTMLElement | undefined);
+}, { flush: "post" });
 
 provide(FormContextKey, {
   form,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
+import { computed, nextTick, useTemplateRef } from "vue";
 import { collectFieldNames, directFieldNames } from "@formblatt/core";
 import type { ResolvedNode } from "@formblatt/core";
 import { useFormContext } from "../form-context";
@@ -49,7 +49,9 @@ const stepText = computed(() =>
 /** A blocked step keeps the user in place — point them at the first problem. */
 const onNext = async () => {
   const advanced = await pages.next();
-  if (!advanced) focusFirstInvalid(rootElement.value);
+  if (advanced) return;
+  await nextTick(); // the aria-invalid attributes the selector reads render after the validation state
+  focusFirstInvalid(rootElement.value);
 };
 </script>
 
