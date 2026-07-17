@@ -38,9 +38,11 @@ export interface PagesApi {
 
 /**
  * Drives a paged layout: which step is current, and the validation gate for
- * advancing. Visibility is live — a page whose `visibleWhen` flips off leaves
- * the step order, and the current index is clamped if the list shrinks
- * beneath it.
+ * advancing. Visibility is live, and the current page is tracked BY ID — an
+ * earlier page whose `visibleWhen` flips off shifts positions without
+ * teleporting the user off their step. Only when the current page itself
+ * disappears does the wizard move: to the nearest still-visible page before
+ * it in layout order, else the first visible one.
  */
 export function usePages(
   form: DynamicFormStore,
@@ -50,16 +52,34 @@ export function usePages(
   const enabled = !!definition.layout?.some(node => node.type === "page");
   const read = createReader(form);
 
+  /** Every page in layout order, visible or not — the reference order for repositioning. */
+  const allPages = computed(() =>
+    resolvedLayout.value.filter((node): node is ResolvedPage => node.type === "page"));
+
   const pages = computed(() =>
-    resolvedLayout.value
-      .filter((node): node is ResolvedPage => node.type === "page")
-      .filter(page => evaluate(page.visibleWhen, read)));
+    allPages.value.filter(page => evaluate(page.visibleWhen, read)));
 
-  const index = ref(0);
-  watch(pages, list => {
-    if (index.value >= list.length) index.value = Math.max(0, list.length - 1);
-  });
+  const currentId = ref(pages.value[0]?.id);
 
+  /** The nearest page before the vanished one (in layout order) that is still visible. */
+  const nearestVisible = (visible: ResolvedPage[]): ResolvedPage | undefined => {
+    const order = allPages.value.map(page => page.id);
+    for (let at = order.indexOf(currentId.value ?? "") - 1; at >= 0; at--) {
+      const candidate = visible.find(page => page.id === order[at]);
+      if (candidate) return candidate;
+    }
+    return visible[0];
+  };
+
+  // sync flush: index/current must never dangle between a visibility change and
+  // a pre-flush watcher run — templates read them in the same tick
+  watch(pages, visible => {
+    if (!visible.some(page => page.id === currentId.value)) {
+      currentId.value = nearestVisible(visible)?.id;
+    }
+  }, { flush: "sync" });
+
+  const index = computed(() => pages.value.findIndex(page => page.id === currentId.value));
   const current = computed(() => pages.value[index.value]);
 
   /** Runs a full pass, then reads back only the CURRENT page's errors. */
@@ -75,25 +95,33 @@ export function usePages(
     enabled,
     pages,
     current,
-    index: computed(() => index.value),
+    index,
     count: computed(() => pages.value.length),
-    isFirst: computed(() => index.value === 0),
+    isFirst: computed(() => index.value <= 0),
     isLast: computed(() => index.value >= pages.value.length - 1),
 
     async next() {
       if (index.value >= pages.value.length - 1) return false;
       if (!(await validateCurrentPage())) return false;
-      index.value++;
+
+      // re-derive the position: validation is async, and answers can flip page visibility
+      const visible = pages.value;
+      const target = visible[visible.findIndex(page => page.id === currentId.value) + 1];
+      if (!target) return false;
+      currentId.value = target.id;
       return true;
     },
 
     previous() {
-      if (index.value > 0) index.value--;
+      const target = pages.value[index.value - 1];
+      if (target) currentId.value = target.id;
     },
 
     goTo(target: number) {
       if (target < 0 || target > index.value) return target === index.value;
-      index.value = target;
+      const page = pages.value[target];
+      if (!page) return false;
+      currentId.value = page.id;
       return true;
     },
   };

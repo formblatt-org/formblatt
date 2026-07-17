@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { FormDefinition } from "@formblatt/core";
 import DynamicForm from "../../src/components/DynamicForm.vue";
+import { writeInput, type DynamicFormStore } from "../../src/form-store";
 import { settle } from "../harness";
 
 const wizard: FormDefinition = {
@@ -87,6 +88,55 @@ describe("DynamicForm wizard", () => {
 
     await wrapper.findAll("button").find(button => button.text() === "Back")!.trigger("click");
     await settle();
+    expect(wrapper.find(".page-title").text()).toBe("Who");
+  });
+
+  // the current page is tracked by id: positions shifting under the user must not move them
+  it("stays on the current page when an EARLIER page's condition flips off", async () => {
+    const shifting: FormDefinition = {
+      id: "wizard-shifting",
+      fields: [
+        { name: "hasIntro", kind: "boolean", control: "checkbox", required: false, initial: true },
+        { name: "intro", kind: "string", required: false, label: "Intro note" },
+        { name: "details", kind: "string", required: false, label: "Details" },
+        { name: "confirmed", kind: "string", required: false, label: "Confirmed" },
+      ],
+      layout: [
+        { type: "page", id: "intro", title: "Intro", visibleWhen: { path: ["hasIntro"], op: "truthy" }, children: [{ type: "field", name: "intro" }] },
+        { type: "page", id: "details", title: "Details", children: [{ type: "field", name: "details" }] },
+        { type: "page", id: "confirm", title: "Confirm", children: [{ type: "field", name: "confirmed" }, { type: "field", name: "hasIntro" }] },
+      ],
+    };
+    const wrapper = mount(DynamicForm, { props: { definition: shifting } });
+    await settle();
+
+    await wrapper.findAll("button").find(button => button.text() === "Next")!.trigger("click");
+    await settle(5);
+    expect(wrapper.find(".page-title").text()).toBe("Details");
+
+    // the intro page leaves the step order — an index-based wizard would land on "Confirm"
+    const form = (wrapper.vm as unknown as { form: DynamicFormStore }).form;
+    writeInput(form, ["hasIntro"], false);
+    await settle();
+
+    expect(wrapper.find(".page-title").text()).toBe("Details");
+    expect(wrapper.find(".step-indicator").text()).toBe("Step 1 of 2");
+  });
+
+  it("returns to the nearest previous page when the CURRENT page's condition flips off", async () => {
+    const wrapper = mount(DynamicForm, { props: { definition: wizard } });
+    await settle();
+    await wrapper.find("input").setValue("Ada");
+    await settle();
+
+    await wrapper.findAll("button").find(button => button.text() === "Next")!.trigger("click");
+    await settle(5);
+    expect(wrapper.find(".page-title").text()).toBe("Business");
+
+    const form = (wrapper.vm as unknown as { form: DynamicFormStore }).form;
+    writeInput(form, ["firstName"], "Grace"); // the Business page's condition no longer holds
+    await settle();
+
     expect(wrapper.find(".page-title").text()).toBe("Who");
   });
 
