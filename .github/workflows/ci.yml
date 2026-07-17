@@ -25,6 +25,9 @@ jobs:
       - name: Build packages
         run: pnpm build:packages
 
+      - name: Check bundle size
+        run: pnpm size
+
       - name: Lint
         run: pnpm lint
 

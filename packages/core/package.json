@@ -47,14 +47,20 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "size": "size-limit"
   },
+  "size-limit": [
+    { "path": "dist/index.mjs", "limit": "13 kB" }
+  ],
   "peerDependencies": {
     "valibot": "^1.4.2"
   },
   "devDependencies": {
+    "@size-limit/file": "^12.1.0",
     "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.10",
+    "size-limit": "^12.1.0",
     "unbuild": "^3.6.1",
     "valibot": "^1.4.2",
     "vitest": "^4.1.10"

@@ -52,8 +52,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "size": "size-limit"
   },
+  "size-limit": [
+    { "path": "dist/index.mjs", "limit": "12 kB" },
+    { "path": "dist/style.css", "limit": "2.5 kB" }
+  ],
   "dependencies": {
     "@formblatt/core": "workspace:*"
   },
@@ -64,10 +69,12 @@
   },
   "devDependencies": {
     "@formisch/vue": "1.0.0-rc.0",
+    "@size-limit/file": "^12.1.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vitest/coverage-v8": "^4.1.10",
     "@vue/test-utils": "^2.4.11",
     "happy-dom": "^20.10.6",
+    "size-limit": "^12.1.0",
     "valibot": "^1.4.2",
     "vite": "^8.1.4",
     "vitest": "^4.1.10",

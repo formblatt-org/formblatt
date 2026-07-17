@@ -12,6 +12,7 @@
     "test": "pnpm -r --filter \"@formblatt/*\" run test",
     "test:coverage": "pnpm -r --filter \"@formblatt/*\" run test:coverage",
     "build:packages": "pnpm -r --filter \"@formblatt/*\" run build",
+    "size": "pnpm -r --filter \"@formblatt/*\" run size",
     "typecheck": "pnpm -r run typecheck",
     "e2e": "pnpm --filter formblatt-demo e2e",
     "lint": "eslint .",
