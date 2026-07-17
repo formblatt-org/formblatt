@@ -7,7 +7,7 @@ import type {
   PopulateResolver,
   PopulateResult,
 } from "@formblatt/core";
-import { createLatestOnly } from "../internal/latest-only";
+import { createLatestOnly, isAbortError } from "../internal/latest-only";
 import {
   readAllInput,
   readInput,
@@ -61,7 +61,7 @@ export function usePopulate(
   };
 
   const populate = async (rule: PopulateAffect, value: unknown) => {
-    const isCurrent = latest.start(rule.trigger);
+    const { isCurrent, signal } = latest.start(rule.trigger);
     pendingCount.value++;
     failed.value = false;
 
@@ -69,13 +69,17 @@ export function usePopulate(
       const result = await resolve!(rule.source, value, {
         trigger: rule.trigger,
         input: readAllInput(form),
+        signal,
       });
 
       if (!isCurrent()) return; // the trigger changed again while this lookup was in flight
       applyResult(form, definition, rule, result, overwrittenByRule);
     } catch (cause) {
-      reportError("populate", `source "${rule.source}" failed`, cause);
-      if (isCurrent()) failed.value = true;
+      // an aborted attempt was superseded by us — that is not a resolver failure
+      if (!isAbortError(cause)) {
+        reportError("populate", `source "${rule.source}" failed`, cause);
+        if (isCurrent()) failed.value = true;
+      }
     } finally {
       pendingCount.value--;
     }

@@ -162,6 +162,23 @@ describe("usePopulate", () => {
     expect(result.isPopulating.value).toBe(false);
   });
 
+  it("aborts the in-flight lookup's signal when the trigger is emptied", async () => {
+    const signals: AbortSignal[] = [];
+    const resolve: PopulateResolver = (_source, _value, { signal }) => {
+      signals.push(signal!);
+      return new Promise<never>(() => {}); // hangs — only the abort matters
+    };
+
+    const { form } = withForm(definition, form => usePopulate(form, definition, resolve));
+
+    writeInput(form, ["profile"], "alice");
+    await settle();
+    writeInput(form, ["profile"], undefined); // deselect cancels the lookup
+    await settle();
+
+    expect(signals[0]!.aborted).toBe(true);
+  });
+
   it("flags hasPopulateError on a failed lookup and clears it on the next attempt", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     let failing = true;

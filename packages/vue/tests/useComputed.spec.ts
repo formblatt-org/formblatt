@@ -220,6 +220,24 @@ describe("useComputed — source mode", () => {
     expect(result.isComputingAny.value).toBe(false);
   });
 
+  it("aborts a superseded recompute's signal", async () => {
+    const signals: AbortSignal[] = [];
+    const resolve: ComputedResolver = (_source, { signal }) => {
+      signals.push(signal!);
+      return signals.length === 1 ? new Promise<never>(() => {}) : 8.25;
+    };
+
+    const { form } = withForm(definition, form => useComputed(form, definition, resolve));
+    await settle();
+
+    writeInput(form, ["subtotal"], 200); // supersedes the hanging first recompute
+    await settle();
+
+    expect(signals[0]!.aborted).toBe(true);
+    expect(signals[1]!.aborted).toBe(false);
+    expect(readInput(form, ["tax"])).toBe(8.25);
+  });
+
   it("flags hasComputedError on a failed recompute and clears it on the next successful one", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     let failing = true;

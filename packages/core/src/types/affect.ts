@@ -69,9 +69,10 @@ export type PopulateResult = PopulateEntry[] | Record<string, unknown> | Populat
  * new non-empty value; the returned entries are written into the form,
  * filtered by the rule's `allow` list (entries naming unknown fields are
  * skipped with a warning). Never called for an emptied trigger — that
- * restores the overwritten values instead. Stale results are discarded, and
- * the whole form blocks (`inert`) while a lookup is pending, since populate
- * writes across many fields at once.
+ * restores the overwritten values instead. Stale results are discarded — and
+ * `ctx.signal` is aborted when a newer lookup (or an emptied trigger)
+ * supersedes this one, so pass it to `fetch`. The whole form blocks (`inert`)
+ * while a lookup is pending, since populate writes across many fields at once.
  */
 export type PopulateResolver = (
   source: string,

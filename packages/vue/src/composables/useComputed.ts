@@ -8,7 +8,7 @@ import type {
   FormDefinition,
   PathKey,
 } from "@formblatt/core";
-import { createLatestOnly } from "../internal/latest-only";
+import { createLatestOnly, isAbortError } from "../internal/latest-only";
 import {
   createPathFlags,
   readDependencies,
@@ -70,7 +70,7 @@ export function useComputed(
     watch(
       () => spec.dependsOn.map(read),
       async () => {
-        const isCurrent = latest.start(path);
+        const { isCurrent, signal } = latest.start(path);
         computing.set(path, true);
         errors.set(path, false);
 
@@ -79,12 +79,16 @@ export function useComputed(
             path: [...path],
             deps: readDependencies(read, spec.dependsOn),
             input: readAllInput(form),
+            signal,
           });
 
           if (isCurrent()) writeComputed(path, value);
         } catch (cause) {
-          reportError("computed", `source "${spec.source}" failed`, cause);
-          if (isCurrent()) errors.set(path, true);
+          // an aborted attempt was superseded by us — that is not a resolver failure
+          if (!isAbortError(cause)) {
+            reportError("computed", `source "${spec.source}" failed`, cause);
+            if (isCurrent()) errors.set(path, true);
+          }
         } finally {
           if (isCurrent()) computing.set(path, false);
         }

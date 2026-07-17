@@ -212,6 +212,8 @@ export type FieldDefinition = ValueField | ObjectField | ArrayField;
  * @param source - The routing key from the definition (`optionsSource.source`).
  * @param ctx.deps - Values of `optionsSource.dependsOn`, keyed by each path's
  *   LAST segment — `dependsOn: [["country"]]` arrives as `deps.country`.
+ * @param ctx.signal - Aborted when a newer load supersedes this one — pass it
+ *   to `fetch` so the stale request is cancelled, not just ignored.
  */
 export type OptionsResolver = (
   source: string,

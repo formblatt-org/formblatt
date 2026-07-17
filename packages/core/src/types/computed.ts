@@ -69,6 +69,8 @@ export type Computed =
  * @param source - The routing key from the definition (`computed.source`).
  * @param ctx.deps - Declared dependencies keyed by each path's LAST segment —
  *   `dependsOn: [["lines"]]` arrives as `deps.lines`; keep terminal names distinct.
+ * @param ctx.signal - Aborted when a newer recompute supersedes this one —
+ *   pass it to `fetch` so the stale request is cancelled, not just ignored.
  */
 export type ComputedResolver = (
   source: string,

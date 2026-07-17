@@ -1,7 +1,7 @@
 import { reactive, watch } from "vue";
 import { isDynamicOptionsField, isEmpty, isValueField, reportError, toPathKey, walkValueFields, warn } from "@formblatt/core";
 import type { FormDefinition, Option, OptionsResolver, PathKey } from "@formblatt/core";
-import { createLatestOnly } from "../internal/latest-only";
+import { createLatestOnly, isAbortError } from "../internal/latest-only";
 import {
   allDependenciesFilled,
   createPathFlags,
@@ -52,7 +52,7 @@ export function useOptions(
   };
 
   const load = async (field: DynamicOptions) => {
-    const isCurrent = latest.start(field.path);
+    const { isCurrent, signal } = latest.start(field.path);
     loading.set(field.path, true);
     errors.set(field.path, false);
 
@@ -61,12 +61,16 @@ export function useOptions(
         path: [...field.path],
         deps: readDependencies(read, field.dependsOn),
         input: readAllInput(form),
+        signal,
       });
 
       if (isCurrent()) setOptions(field.path, options);
     } catch (cause) {
-      reportError("options", `source "${field.source}" failed`, cause);
-      if (isCurrent()) errors.set(field.path, true);
+      // an aborted attempt was superseded by us — that is not a resolver failure
+      if (!isAbortError(cause)) {
+        reportError("options", `source "${field.source}" failed`, cause);
+        if (isCurrent()) errors.set(field.path, true);
+      }
     } finally {
       if (isCurrent()) loading.set(field.path, false);
     }

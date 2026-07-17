@@ -159,6 +159,35 @@ describe("useOptions", () => {
     warn.mockRestore();
   });
 
+  it("aborts a superseded load's signal, and does not report the abort as a failure", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const signals: AbortSignal[] = [];
+    const never = deferred<Option[]>();
+
+    const resolve: OptionsResolver = (source, { signal }) => {
+      if (source === "countries") return [];
+      signals.push(signal!);
+      // reject like an aborted fetch would when the signal fires
+      return new Promise((_, reject) => {
+        signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
+        void never.promise;
+      });
+    };
+
+    const { form, result } = withForm(definition, form => useOptions(form, definition, resolve));
+
+    writeInput(form, ["country"], "us");
+    await settle();
+    writeInput(form, ["country"], "de"); // supersedes the in-flight US load
+    await settle();
+
+    expect(signals[0]!.aborted).toBe(true);
+    expect(signals[1]!.aborted).toBe(false);
+    expect(result.hasOptionsError(["state"])).toBe(false);
+    expect(error).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
   it("flags hasOptionsError on a failed load and clears it on the next successful one", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     let failing = true;
