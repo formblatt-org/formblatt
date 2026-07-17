@@ -17,8 +17,8 @@
     "@formisch/vue": "1.0.0-rc.0",
     "nuxt": "^4.4.8",
     "valibot": "^1.4.2",
-    "vue": "^3.5.39",
-    "vue-router": "^5.1.0"
+    "vue": "^3.5.40",
+    "vue-router": "^5.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
