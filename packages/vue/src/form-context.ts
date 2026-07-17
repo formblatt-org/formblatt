@@ -122,6 +122,8 @@ export interface UiText {
   populating: string;
   /** Shown under a field whose host-resolved options or computed value failed to load. */
   loadFailed: string;
+  /** Title of the error box a rejected definition renders instead of the form. */
+  formError: string;
   /** Wizard navigation. `stepLabel` interpolates `{current}` and `{total}`. */
   next: string;
   back: string;
@@ -140,6 +142,7 @@ export const DEFAULT_UI_TEXT: UiText = {
   removeRow: "Remove",
   populating: "Loading…",
   loadFailed: "Couldn't load — please try again",
+  formError: "This form could not be loaded.",
   next: "Next",
   back: "Back",
   stepLabel: "Step {current} of {total}",

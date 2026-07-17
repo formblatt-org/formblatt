@@ -36,6 +36,7 @@ import {
 } from "../form-context";
 import { createReader, isFormDirty, writeFieldErrors } from "../form-store";
 import { useCoverageWarnings } from "../internal/coverage";
+import { isDevelopment } from "../internal/env";
 import { focusFirstInvalid } from "../internal/focus";
 import { useAffects } from "../composables/useAffects";
 import { usePopulate } from "../composables/usePopulate";
@@ -85,24 +86,56 @@ const props = defineProps<{
   onSubmit?: SubmitHandler;
 }>()
 
+const emit = defineEmits<{
+  /** Fired once at setup when the definition is rejected — the form renders its error state instead. */
+  error: [error: Error];
+}>()
+
 const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 
-// Migrated and validated once at setup: a changed definition prop needs a :key
-// remount anyway, since useForm builds its store only once.
-const definition = validateDefinition(migrateDefinition(props.definition), {
-  customRuleTypes: props.rules && Object.keys(props.rules),
-  controls: props.controls && Object.keys(props.controls),
-});
+/** What a rejected definition falls back to, so the store and context still exist. */
+const EMPTY_DEFINITION: FormDefinition = { id: "__invalid", fields: [] };
 
-const form = useForm({
+const buildSchema = (definition: FormDefinition) =>
   // the schema is built once, so a locale change to `text.requiredMessage` needs a :key remount
-  schema: buildFormSchema(definition, {
+  buildFormSchema(definition, {
     requiredMessage: text.value.requiredMessage,
     messages: props.messages,
     rules: props.rules,
     validationResolver: props.resolveValidation,
-  }),
-  initialInput: buildInitialInput(definition, props.initialData),
+  });
+
+// Migrated, validated and compiled once at setup: a changed definition prop
+// needs a :key remount anyway, since useForm builds its store only once.
+// Served JSON is exactly the input that goes wrong in production, so a
+// rejected definition renders the error state rather than crashing the host —
+// the store is built over an empty stand-in and the template short-circuits.
+const compiled = (() => {
+  try {
+    const validated = validateDefinition(migrateDefinition(props.definition), {
+      customRuleTypes: props.rules && Object.keys(props.rules),
+      controls: props.controls && Object.keys(props.controls),
+    });
+    return { definition: validated, schema: buildSchema(validated), error: null };
+  } catch (cause) {
+    const error = cause instanceof Error ? cause : new Error(String(cause));
+    reportError("form", "definition rejected — rendering the error state instead of the form", error);
+    return { definition: EMPTY_DEFINITION, schema: buildSchema(EMPTY_DEFINITION), error };
+  }
+})();
+
+// eslint-disable-next-line vue/no-dupe-keys -- deliberately shadows the raw prop: nothing downstream may read the unvalidated definition
+const definition = compiled.definition;
+const definitionError = compiled.error;
+if (definitionError) emit("error", definitionError);
+
+// surfacing raw validation output to END USERS would leak contract internals —
+// the default error box shows details in dev builds only
+const showErrorDetail = isDevelopment();
+
+const form = useForm({
+  schema: compiled.schema,
+  initialInput: buildInitialInput(definition, definitionError ? undefined : props.initialData),
   validate: definition.validate,
   revalidate: definition.revalidate,
 })
@@ -219,11 +252,19 @@ provide(FormContextKey, {
   unregister,
 })
 
-defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError })
+defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError, definitionError })
 </script>
 
 <template>
-  <Form ref="formEl" :of="form" class="dynamic-form" @submit="submitForm">
+  <!-- a rejected definition explains itself instead of crashing the page — override via the error slot -->
+  <div v-if="definitionError" class="definition-error" role="alert">
+    <slot name="error" :error="definitionError">
+      <p class="definition-error-title">{{ text.formError }}</p>
+      <pre v-if="showErrorDetail" class="definition-error-detail">{{ definitionError.message }}</pre>
+    </slot>
+  </div>
+
+  <Form v-else ref="formEl" :of="form" class="dynamic-form" @submit="submitForm">
     <!--
       populate writes many fields at once, so the whole form blocks. inert stops
       clicks, focus and tabbing in one attribute; `|| undefined` matters because
@@ -275,6 +316,27 @@ defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError })
 /* Only a positioning context on <form> — headless consumers put their own grid inside it. */
 .dynamic-form {
   position: relative;
+}
+
+.definition-error {
+  padding: 1rem 1.25rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+}
+
+.definition-error-title {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 600;
+}
+
+.definition-error-detail {
+  margin: .6rem 0 0;
+  font-size: .78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .busy-region.is-busy {

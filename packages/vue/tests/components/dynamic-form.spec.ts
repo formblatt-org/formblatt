@@ -437,6 +437,52 @@ describe("DynamicForm composed interactions", () => {
   });
 });
 
+describe("DynamicForm invalid definitions", () => {
+  // an affect targeting a nonexistent field is a lint ERROR — validateDefinition rejects it
+  const broken: FormDefinition = {
+    id: "form-broken",
+    fields: [{ name: "email", kind: "string", required: false }],
+    affects: [{ effect: "show", when: { path: ["email"], op: "notEmpty" }, targets: [["ghost"]] }],
+  };
+
+  it("renders the error state instead of throwing, and emits the error", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const wrapper = mount(DynamicForm, { props: { definition: broken } });
+
+    expect(wrapper.find(".definition-error").exists()).toBe(true);
+    expect(wrapper.find("form").exists()).toBe(false);
+
+    const emitted = wrapper.emitted("error");
+    expect(emitted).toHaveLength(1);
+    expect((emitted![0]![0] as Error).message).toContain("ghost");
+    error.mockRestore();
+  });
+
+  it("renders a custom error slot with the error", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const wrapper = mount(DynamicForm, {
+      props: { definition: broken },
+      slots: { error: '<template #error="{ error }"><p class="custom-error">{{ error.message }}</p></template>' },
+    });
+
+    expect(wrapper.find(".custom-error").text()).toContain("ghost");
+    error.mockRestore();
+  });
+
+  it("survives a definition that is not even an object", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const wrapper = mount(DynamicForm, {
+      props: { definition: null as unknown as FormDefinition },
+    });
+
+    expect(wrapper.find(".definition-error").exists()).toBe(true);
+    error.mockRestore();
+  });
+});
+
 describe("DynamicForm resolver failures", () => {
   it("shows the load-failed line under a field whose options resolver rejects", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});

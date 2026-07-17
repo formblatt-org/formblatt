@@ -41,6 +41,12 @@ const definition = {
 
 Interaction rules come from the definition: visibility affects (`show` / `hide` / `hideAndClear`), `populate` lookups that write many fields and revert cleanly, cascading dynamic options (country → state), and computed fields — synchronous expressions or async host-resolved sources, per-row inside arrays. Submit is gated while any of that is in flight, a failed submit focuses the first invalid control, and `is-dirty` (slot prop / expose) drives unsaved-changes guards.
 
+## When things fail
+
+- **A rejected definition renders an error state, not a crash.** Served JSON that fails migration, the shape check or the lint renders an error box (detail shown in dev builds only), fires `@error` with the reason, and exposes `definitionError`. Override the box via the `#error="{ error }"` slot.
+- **Resolver failures are visible.** A field whose options load or source-mode recompute rejects shows the `loadFailed` text (its own amber line — a system problem, not a validation error) and reports through `hasOptionsError(path)` / `hasComputedError(path)` (context + slot props); a failed populate lookup sets `hasPopulateError` (slot prop / expose). Flags clear when the next attempt starts.
+- **Diagnostics are routable.** Everything the engine warns or reports goes through `setDiagnosticsHandler` from `@formblatt/core` — point it at your telemetry instead of the console.
+
 ## License
 
 [MIT](https://github.com/formblatt-org/formblatt/blob/main/LICENSE)

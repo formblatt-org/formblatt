@@ -35,6 +35,7 @@ Key semantics (each documented in detail on the types):
 - **Transient fields** — `transient: true` keeps a field in the form (rendered, validated, readable through the store) but strips it from the parsed values a submit delivers, so derived-for-display state never leaks into the data contract.
 - **Hydration** — `buildInitialInput(definition, savedRecord)` merges host data over declared initials for edit workflows.
 - **Migrations** — definitions carry a `schemaVersion`; append-only migrations bring stored documents to the current shape.
+- **Diagnostics** — recoverable problems (unknown layout fields, rejected resolver promises) log to the console by default; `setDiagnosticsHandler` routes them to your telemetry instead. Contract violations still throw.
 
 This package has no framework dependency — `valibot` is its only peer. For rendering, see [`@formblatt/vue`](https://www.npmjs.com/package/@formblatt/vue).
 
