@@ -16,6 +16,7 @@ const props = defineProps<{
 }>()
 
 // formisch types Field's `path` from the schema; ours is built at runtime (see form-store)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fieldPath = computed(() => props.path as any);
 
 // optional by design: FieldControl also works outside a DynamicForm, where errors always show

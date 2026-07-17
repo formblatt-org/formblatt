@@ -24,6 +24,7 @@ export type DynamicFormStore = FormStore<FormSchema>;
  * `GenericSchema<Record<string, unknown>>` cannot express. Every store access
  * goes through this module, so the mismatch is asserted once, here.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- the one sanctioned formisch path cast (see above)
 const args = (path: readonly PathKey[], rest: object = {}): any => ({ path, ...rest });
 
 /** The value at `path`, or `undefined` while it is unset. */

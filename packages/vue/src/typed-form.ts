@@ -91,6 +91,7 @@ export type InferFormOutput<T extends FormDefinition> =
  * and emits. Intersecting `string` props with literal unions collapses them
  * to the union — which is what drives the autocomplete.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- constructor args of a component type are opaque here
 type WithProps<C, TProps> = C & (new (...args: any[]) => { $props: TProps });
 
 /**

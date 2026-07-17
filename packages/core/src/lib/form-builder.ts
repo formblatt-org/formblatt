@@ -77,6 +77,7 @@ interface BuildContext {
   validationResolver?: ValidationResolver;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- actions from arbitrary registries cannot be statically typed
 type ValidationAction = v.GenericPipeAction<any, any, any>;
 
 /**
@@ -149,6 +150,8 @@ interface SchemaKit {
   forward(action: ValidationAction, path: readonly PathKey[]): unknown;
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- valibot types pipe/forward from statically known
+   shapes, which runtime-built schemas cannot express; the casts live here, once (see SchemaKit) */
 const SYNC_KIT: SchemaKit = {
   object: entries => v.object(entries),
   array: item => v.array(item),
@@ -166,6 +169,7 @@ const ASYNC_KIT: SchemaKit = {
   pipe: (schema, ...actions) => (v.pipeAsync as any)(schema, ...actions),
   forward: (action, path) => v.forwardAsync(action as any, path as any),
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Compiles a form definition into the Valibot schema that validates its data.

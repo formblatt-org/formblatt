@@ -68,6 +68,7 @@ const move = (from: number, to: number) => moveItem(ctx.form, path.value, from, 
 const swap = (at: number, and: number) => swapItems(ctx.form, path.value, at, and);
 
 // formisch types FieldArray's `path` from the schema; ours is built at runtime (see form-store)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const arrayPath = computed(() => path.value as any);
 
 usePlacedFields([props.name]);

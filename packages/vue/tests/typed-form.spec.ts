@@ -69,6 +69,7 @@ describe("InferFormOutput", () => {
     // the untyped SubmitHandler signature too and reject every typed handler
     const handler: FormProps["onSubmit"] = values => values.address.city;
 
+    expect(DynamicForm).toBeDefined();
     expect(handler).toBeDefined();
   });
 });

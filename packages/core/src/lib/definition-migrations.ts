@@ -16,6 +16,7 @@ export const CURRENT_SCHEMA_VERSION = 1;
  * - A migration may only derive the new shape from the old one plus defaults.
  *   Keep a frozen fixture of each released version and test the chain end-to-end.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- old shapes are deliberately untyped; only this file knows them
 const migrations: Record<number, (def: any) => any> = {
   // 1: (def) => ({ ...def, /* v1 -> v2 */ }),
 };
@@ -27,6 +28,7 @@ const migrations: Record<number, (def: any) => any> = {
  * migrations only go up, never down.
  */
 export function migrateDefinition(raw: FormDefinition): FormDefinition {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mid-chain shapes are historical, not the current type
   let definition: any = raw;
   let version: number = definition.schemaVersion ?? 1;
 
