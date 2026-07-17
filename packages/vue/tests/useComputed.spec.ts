@@ -220,6 +220,29 @@ describe("useComputed — source mode", () => {
     expect(result.isComputingAny.value).toBe(false);
   });
 
+  it("flags hasComputedError on a failed recompute and clears it on the next successful one", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let failing = true;
+    const resolve: ComputedResolver = () => {
+      if (failing) throw new Error("tax service down");
+      return 8.25;
+    };
+
+    const { form, result } = withForm(definition, form => useComputed(form, definition, resolve));
+    await settle();
+
+    expect(result.hasComputedError(["tax"])).toBe(true);
+    expect(result.isComputing(["tax"])).toBe(false);
+
+    failing = false;
+    writeInput(form, ["subtotal"], 200);
+    await settle();
+
+    expect(result.hasComputedError(["tax"])).toBe(false);
+    expect(readInput(form, ["tax"])).toBe(8.25);
+    error.mockRestore();
+  });
+
   it("discards a stale response when a newer recompute has started", async () => {
     const slow = deferred<number>();
     const calls: number[] = [];

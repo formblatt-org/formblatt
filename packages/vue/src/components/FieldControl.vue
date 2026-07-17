@@ -23,6 +23,11 @@ const fieldPath = computed(() => props.path as any);
 const ctx = inject(FormContextKey, null);
 const gatedOnTouch = computed(() => ctx?.errorDisplay === "touched");
 
+// read from the context rather than yet another pass-through prop — every
+// placement (layout, section, field, array row) gets it for free
+const loadError = computed(() =>
+  ctx ? ctx.hasOptionsError(props.path) || ctx.hasComputedError(props.path) : false);
+
 /**
  * formisch validates the whole form, so every field has errors on any trigger.
  * "touched" mode hides them until THIS field was focused or a submit was attempted.
@@ -40,6 +45,7 @@ const visibleErrors = (errors: string[] | null, isTouched: boolean) =>
       :errors="visibleErrors(slot.errors, slot.isTouched)"
       :options="options"
       :loading="loading"
+      :load-error="loadError"
     />
   </Field>
 </template>

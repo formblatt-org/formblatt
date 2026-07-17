@@ -29,6 +29,10 @@ export interface FormContext {
   optionsFor(path: readonly PathKey[]): Option[] | undefined;
   isLoadingOptions(path: readonly PathKey[]): boolean;
   isComputing(path: readonly PathKey[]): boolean;
+  /** Whether the last options load for `path` failed — the field renders its load-failed state. */
+  hasOptionsError(path: readonly PathKey[]): boolean;
+  /** Whether the last source-mode recompute for `path` failed — the value shown may be stale. */
+  hasComputedError(path: readonly PathKey[]): boolean;
 
   /**
    * `"always"` shows field errors as soon as validation produces them;
@@ -77,6 +81,8 @@ export interface CustomControlProps {
   options: readonly Option[];
   loading: boolean;
   disabled: boolean;
+  /** Whether the field's host-resolved options or computed value failed to load. */
+  loadError: boolean;
 }
 
 /** What a {@link SubmitHandler} receives besides the values. */
@@ -114,6 +120,8 @@ export interface UiText {
   removeRow: string;
   /** Announced while a populate lookup blocks the form. */
   populating: string;
+  /** Shown under a field whose host-resolved options or computed value failed to load. */
+  loadFailed: string;
   /** Wizard navigation. `stepLabel` interpolates `{current}` and `{total}`. */
   next: string;
   back: string;
@@ -131,6 +139,7 @@ export const DEFAULT_UI_TEXT: UiText = {
   addRow: "Add",
   removeRow: "Remove",
   populating: "Loading…",
+  loadFailed: "Couldn't load — please try again",
   next: "Next",
   back: "Back",
   stepLabel: "Step {current} of {total}",

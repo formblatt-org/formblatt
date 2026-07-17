@@ -159,6 +159,50 @@ describe("useOptions", () => {
     warn.mockRestore();
   });
 
+  it("flags hasOptionsError on a failed load and clears it on the next successful one", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let failing = true;
+    const resolve: OptionsResolver = (source, { deps }) => {
+      if (source === "countries") return [];
+      if (failing) throw new Error("states service down");
+      return STATES[deps.country as string] ?? [];
+    };
+
+    const { form, result } = withForm(definition, form => useOptions(form, definition, resolve));
+    writeInput(form, ["country"], "us");
+    await settle();
+
+    expect(result.hasOptionsError(["state"])).toBe(true);
+    expect(result.isLoadingOptions(["state"])).toBe(false);
+
+    failing = false;
+    writeInput(form, ["country"], "de");
+    await settle();
+
+    expect(result.hasOptionsError(["state"])).toBe(false);
+    expect(result.optionsFor(["state"])).toEqual(STATES.de);
+    error.mockRestore();
+  });
+
+  it("clears hasOptionsError when the dependency empties instead of reloading", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const resolve: OptionsResolver = source => {
+      if (source === "countries") return [];
+      throw new Error("states service down");
+    };
+
+    const { form, result } = withForm(definition, form => useOptions(form, definition, resolve));
+    writeInput(form, ["country"], "us");
+    await settle();
+    expect(result.hasOptionsError(["state"])).toBe(true);
+
+    writeInput(form, ["country"], undefined);
+    await settle();
+
+    expect(result.hasOptionsError(["state"])).toBe(false);
+    error.mockRestore();
+  });
+
   it("reports isLoadingOptions while a load is in flight", async () => {
     const pending = deferred<Option[]>();
     const { result } = withForm(definition, form =>

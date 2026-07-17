@@ -116,9 +116,9 @@ const resolvedLayout = computed(() =>
   resolveNodes(normalizeLayout(definition), definition.fields));
 
 const { isVisible } = useAffects(form, definition);
-const { isPopulating } = usePopulate(form, definition, props.resolvePopulate);
-const { optionsFor, isLoadingOptions, isLoadingAnyOptions } = useOptions(form, definition, props.resolveOptions);
-const { isComputing, isComputingAny } = useComputed(form, definition, props.resolveComputed);
+const { isPopulating, hasPopulateError } = usePopulate(form, definition, props.resolvePopulate);
+const { optionsFor, isLoadingOptions, isLoadingAnyOptions, hasOptionsError } = useOptions(form, definition, props.resolveOptions);
+const { isComputing, isComputingAny, hasComputedError } = useComputed(form, definition, props.resolveComputed);
 const { register, unregister } = useCoverageWarnings(definition);
 const pages = usePages(form, definition, resolvedLayout);
 
@@ -213,11 +213,13 @@ provide(FormContextKey, {
   optionsFor,
   isLoadingOptions,
   isComputing,
+  hasOptionsError,
+  hasComputedError,
   register,
   unregister,
 })
 
-defineExpose({ form, isPopulating, isBusy, isDirty })
+defineExpose({ form, isPopulating, isBusy, isDirty, hasPopulateError })
 </script>
 
 <template>
@@ -243,6 +245,9 @@ defineExpose({ form, isPopulating, isBusy, isDirty })
         :is-busy="isBusy"
         :is-computing="isComputing"
         :is-loading-options="isLoadingOptions"
+        :has-options-error="hasOptionsError"
+        :has-computed-error="hasComputedError"
+        :has-populate-error="hasPopulateError"
         :pages="pages"
       >
         <DynamicLayout />

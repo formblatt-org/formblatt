@@ -40,6 +40,7 @@ export function usePopulate(
   const rules = (definition.affects ?? []).filter(isPopulateAffect);
   const latest = createLatestOnly();
   const pendingCount = ref(0);
+  const failed = ref(false);
 
   if (rules.length && !resolve) {
     warn("populate", "the definition declares populate affects but no PopulateResolver was given — they will not run");
@@ -62,6 +63,7 @@ export function usePopulate(
   const populate = async (rule: PopulateAffect, value: unknown) => {
     const isCurrent = latest.start(rule.trigger);
     pendingCount.value++;
+    failed.value = false;
 
     try {
       const result = await resolve!(rule.source, value, {
@@ -73,6 +75,7 @@ export function usePopulate(
       applyResult(form, definition, rule, result, overwrittenByRule);
     } catch (cause) {
       reportError("populate", `source "${rule.source}" failed`, cause);
+      if (isCurrent()) failed.value = true;
     } finally {
       pendingCount.value--;
     }
@@ -84,6 +87,7 @@ export function usePopulate(
       value => {
         if (isEmpty(value)) {
           latest.cancel(rule.trigger); // a settling lookup must not repopulate what we just reverted
+          failed.value = false; // an emptied trigger asks for nothing — no failure to report
           revert(rule);
           return;
         }
@@ -92,7 +96,11 @@ export function usePopulate(
     );
   }
 
-  return { isPopulating: computed(() => pendingCount.value > 0) };
+  return {
+    isPopulating: computed(() => pendingCount.value > 0),
+    /** Whether the LAST lookup failed (form-level — populate writes many fields). Cleared when a new lookup starts or the trigger empties. */
+    hasPopulateError: computed(() => failed.value),
+  };
 }
 
 /**

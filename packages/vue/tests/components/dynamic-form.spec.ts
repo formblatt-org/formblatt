@@ -437,6 +437,25 @@ describe("DynamicForm composed interactions", () => {
   });
 });
 
+describe("DynamicForm resolver failures", () => {
+  it("shows the load-failed line under a field whose options resolver rejects", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const definition: FormDefinition = {
+      id: "form-options-error",
+      fields: [
+        { name: "country", kind: "enum", control: "select", required: false, optionsSource: { source: "countries" } },
+      ],
+    };
+    const wrapper = mount(DynamicForm, {
+      props: { definition, resolveOptions: () => Promise.reject(new Error("service down")) },
+    });
+    await settle(5);
+
+    expect(wrapper.find(".field-load-error").text()).toContain("Couldn't load");
+    error.mockRestore();
+  });
+});
+
 describe("DynamicForm coverage warnings", () => {
   it("warns about fields the custom slot never places", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

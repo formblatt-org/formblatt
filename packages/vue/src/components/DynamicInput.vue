@@ -13,6 +13,8 @@ const props = defineProps<{
   /** Host-resolved choices; falls back to the field's static `options`. */
   options?: Option[];
   loading?: boolean;
+  /** The field's host-resolved options or computed value failed to load. */
+  loadError?: boolean;
 }>()
 
 const emit = defineEmits<{ "update:input": [value: unknown] }>()
@@ -101,6 +103,7 @@ const onTextInput = (event: Event) => {
       :options="choices"
       :loading="!!loading"
       :disabled="isDisabled"
+      :load-error="!!loadError"
       @update:input="emit('update:input', $event)"
     />
 
@@ -173,6 +176,9 @@ const onTextInput = (event: Event) => {
         <input v-else :type="field.control ?? 'text'" v-bind="{ ...fieldProps, ...aria }"
             :disabled="isDisabled" :value="input" @input="onTextInput" />
     </label>
+
+    <!-- a resolver failure is a system problem, not a validation error — its own line, amber not red -->
+    <p v-if="loadError" class="field-load-error" role="alert">{{ text.loadFailed }}</p>
 
     <!-- role="alert" announces newly appearing errors to screen readers -->
     <ul v-if="errors" :id="errorsId" role="alert" class="field-errors">
@@ -319,6 +325,12 @@ const onTextInput = (event: Event) => {
   padding: 0;
   list-style: none;
   color: #dc2626;
+  font-size: .8rem;
+}
+
+.field-load-error {
+  margin: .4rem 0 0;
+  color: #b45309;
   font-size: .8rem;
 }
 </style>

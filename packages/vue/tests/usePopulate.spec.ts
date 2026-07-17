@@ -162,6 +162,46 @@ describe("usePopulate", () => {
     expect(result.isPopulating.value).toBe(false);
   });
 
+  it("flags hasPopulateError on a failed lookup and clears it on the next attempt", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    let failing = true;
+    const resolve: PopulateResolver = (_source, value) => {
+      if (failing) throw new Error("profile service down");
+      return profiles[value as string] ?? [];
+    };
+
+    const { form, result } = withForm(definition, form => usePopulate(form, definition, resolve));
+    writeInput(form, ["profile"], "alice");
+    await settle();
+
+    expect(result.hasPopulateError.value).toBe(true);
+    expect(result.isPopulating.value).toBe(false);
+
+    failing = false;
+    writeInput(form, ["profile"], "bob");
+    await settle();
+
+    expect(result.hasPopulateError.value).toBe(false);
+    expect(readInput(form, ["firstName"])).toBe("Bob");
+    error.mockRestore();
+  });
+
+  it("clears hasPopulateError when the trigger is emptied", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failing: PopulateResolver = () => { throw new Error("down"); };
+    const { form, result } = withForm(definition, form => usePopulate(form, definition, failing));
+
+    writeInput(form, ["profile"], "alice");
+    await settle();
+    expect(result.hasPopulateError.value).toBe(true);
+
+    writeInput(form, ["profile"], undefined);
+    await settle();
+
+    expect(result.hasPopulateError.value).toBe(false);
+    error.mockRestore();
+  });
+
   it("discards a lookup that settles after the trigger was emptied", async () => {
     const pending = deferred<Record<string, unknown>>();
     const { form } = withForm(definition, form =>

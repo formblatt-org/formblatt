@@ -37,6 +37,7 @@ export function useOptions(
 ) {
   const optionsByPath = reactive<Record<string, Option[]>>({});
   const loading = createPathFlags();
+  const errors = createPathFlags();
   const latest = createLatestOnly();
   const read = createReader(form);
   const dynamicFields = collectDynamicOptions(definition);
@@ -53,6 +54,7 @@ export function useOptions(
   const load = async (field: DynamicOptions) => {
     const isCurrent = latest.start(field.path);
     loading.set(field.path, true);
+    errors.set(field.path, false);
 
     try {
       const options = await resolve!(field.source, {
@@ -64,6 +66,7 @@ export function useOptions(
       if (isCurrent()) setOptions(field.path, options);
     } catch (cause) {
       reportError("options", `source "${field.source}" failed`, cause);
+      if (isCurrent()) errors.set(field.path, true);
     } finally {
       if (isCurrent()) loading.set(field.path, false);
     }
@@ -85,6 +88,7 @@ export function useOptions(
       () => field.dependsOn.map(read),
       async dependencyValues => {
         setOptions(field.path, []); // the loaded options belong to the previous dependency value
+        errors.set(field.path, false); // ...and so does a failure
 
         // with a dependency empty there is nothing to choose from, so no value can be valid.
         // An already-empty value is left alone: a pristine string-ish leaf holds "" (formisch's
@@ -112,6 +116,8 @@ export function useOptions(
     isLoadingOptions: (path: readonly PathKey[]) => loading.isSet(path),
     /** True while ANY options load is in flight — its reconcile pass may still clear a value. */
     isLoadingAnyOptions: loading.any,
+    /** Whether the LAST load for `path` failed — cleared when a reload starts or its dependencies change. */
+    hasOptionsError: (path: readonly PathKey[]) => errors.isSet(path),
   };
 }
 

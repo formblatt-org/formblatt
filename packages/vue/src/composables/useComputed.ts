@@ -42,6 +42,7 @@ export function useComputed(
   resolve?: ComputedResolver,
 ) {
   const computing = createPathFlags();
+  const errors = createPathFlags();
   const latest = createLatestOnly();
   const read = createReader(form);
 
@@ -71,6 +72,7 @@ export function useComputed(
       async () => {
         const isCurrent = latest.start(path);
         computing.set(path, true);
+        errors.set(path, false);
 
         try {
           const value = await resolve!(spec.source, {
@@ -82,6 +84,7 @@ export function useComputed(
           if (isCurrent()) writeComputed(path, value);
         } catch (cause) {
           reportError("computed", `source "${spec.source}" failed`, cause);
+          if (isCurrent()) errors.set(path, true);
         } finally {
           if (isCurrent()) computing.set(path, false);
         }
@@ -147,5 +150,7 @@ export function useComputed(
     isComputing: (path: readonly PathKey[]) => computing.isSet(path),
     /** True while ANY source-mode value is in flight — submitting then would ship a stale payload. */
     isComputingAny: computing.any,
+    /** Whether the LAST recompute for `path` failed — the field keeps its previous value meanwhile. */
+    hasComputedError: (path: readonly PathKey[]) => errors.isSet(path),
   };
 }
