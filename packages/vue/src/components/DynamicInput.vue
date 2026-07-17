@@ -43,18 +43,6 @@ const entry = computed<ControlEntry>(() => {
   return named ?? GENERIC_CONTROL;
 });
 
-/** The uniform props every built-in control receives. See controls/contract.ts. */
-const controlProps = computed(() => ({
-  field: props.field,
-  input: props.input,
-  fieldProps: props.fieldProps,
-  aria: aria.value,
-  choices: choices.value,
-  disabled: isDisabled.value,
-  loading: !!props.loading,
-  text: text.value,
-}));
-
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
 
@@ -73,6 +61,18 @@ const aria = computed(() => ({
   "aria-invalid": isInvalid.value || undefined,
   "aria-describedby": isInvalid.value ? errorsId : undefined,
   "aria-required": isRequired.value || undefined,
+}));
+
+/** The uniform props every built-in control receives. See controls/contract.ts. */
+const controlProps = computed(() => ({
+  field: props.field,
+  input: props.input,
+  fieldProps: props.fieldProps,
+  aria: aria.value,
+  choices: choices.value,
+  disabled: isDisabled.value,
+  loading: !!props.loading,
+  text: text.value,
 }));
 </script>
 
