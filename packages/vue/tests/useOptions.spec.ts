@@ -80,6 +80,33 @@ describe("useOptions", () => {
     expect(readInput(form, ["state"])).toBeUndefined();
   });
 
+  it("clears the value when a successful load returns NO options — nothing is choosable", async () => {
+    const { form } = withForm(definition, form => useOptions(form, definition, resolveStates));
+
+    writeInput(form, ["state"], "ca"); // a US state
+    writeInput(form, ["country"], "fr"); // ...but the resolver knows no French states
+    await settle();
+
+    expect(readInput(form, ["state"])).toBeUndefined();
+  });
+
+  it("KEEPS the value when the load FAILED — an outage must not wipe user state", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const resolve: OptionsResolver = source => {
+      if (source === "countries") return [];
+      throw new Error("states service down");
+    };
+
+    const { form, result } = withForm(definition, form => useOptions(form, definition, resolve));
+    writeInput(form, ["state"], "ca");
+    writeInput(form, ["country"], "us");
+    await settle();
+
+    expect(readInput(form, ["state"])).toBe("ca");
+    expect(result.hasOptionsError(["state"])).toBe(true);
+    error.mockRestore();
+  });
+
   it("clears the dependent value and its options when the dependency is emptied", async () => {
     const { form, result } = withForm(definition, form => useOptions(form, definition, resolveStates));
 

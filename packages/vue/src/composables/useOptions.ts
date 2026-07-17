@@ -76,13 +76,19 @@ export function useOptions(
     }
   };
 
-  /** Keeps a value the fresh options still offer; clears one they no longer do. */
+  /**
+   * Keeps a value the fresh options still offer; clears one they no longer do
+   * — including after a successful load with NO options (nothing is choosable,
+   * so no value can be right, and a stale one would silently submit). A FAILED
+   * load keeps the value: wiping user state over an outage compounds the failure.
+   */
   const reconcileValue = (field: DynamicOptions) => {
     const value = readInput(form, field.path);
     if (isEmpty(value)) return;
+    if (errors.isSet(field.path)) return;
 
     const options = optionsByPath[toPathKey(field.path)] ?? [];
-    if (options.length && !options.some(option => option.value === value)) {
+    if (!options.some(option => option.value === value)) {
       clearInput(form, field.path);
     }
   };
