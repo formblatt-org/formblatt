@@ -84,6 +84,51 @@ describe("field-level checks", () => {
     ]);
   });
 
+  it("rejects built-in rules whose operand has the wrong type", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "a", kind: "string", validations: [{ type: "minLength", value: "8" }] },
+        { name: "b", kind: "number", validations: [{ type: "maxValue", value: "100" }] },
+        { name: "c", kind: "date", validations: [{ type: "minValue", value: "not-a-date" }] },
+      ],
+    };
+    const errors = lint(def, "error");
+    expect(errors).toEqual([
+      expect.stringContaining("`minLength` needs a finite number"),
+      expect.stringContaining("`maxValue` needs a finite number"),
+      expect.stringContaining("`minValue` needs an ISO date string"),
+    ]);
+  });
+
+  it("rejects a regex operand that does not compile — it would throw at schema build", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "zip", kind: "string", validations: [{ type: "regex", value: "(" }] },
+        { name: "ref", kind: "string", validations: [{ type: "regex", value: 42 }] },
+      ],
+    };
+    const errors = lint(def, "error");
+    expect(errors).toEqual([
+      expect.stringContaining("compilable pattern"),
+      expect.stringContaining("pattern string"),
+    ]);
+  });
+
+  it("accepts well-typed operands, and leaves custom rule operands to the host", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "a", kind: "string", validations: [{ type: "minLength", value: 8 }, { type: "regex", value: "^\\d+$" }] },
+        { name: "b", kind: "number", validations: [{ type: "maxValue", value: 100 }] },
+        { name: "c", kind: "date", validations: [{ type: "minValue", value: "2020-01-01" }] },
+        { name: "plate", kind: "string", validations: [{ type: "licensePlate", value: { anything: true } }] },
+      ],
+    };
+    expect(lintDefinition(def, { customRuleTypes: ["licensePlate"] })).toEqual([]);
+  });
+
   it("accepts host-registered rule types passed as customRuleTypes", () => {
     const def: FormDefinition = {
       id: "x",

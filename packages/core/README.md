@@ -30,7 +30,7 @@ const schema = buildFormSchema(definition); // pass { requiredMessage } to local
 Key semantics (each documented in detail on the types):
 
 - **Required-when-visible** — fields targeted by visibility affects are optional in their own schema and re-required by a form-level check while visible, so a hidden required field can never block submit invisibly.
-- **Linting** — `validateDefinition` rejects definitions the engine would silently mishandle: unknown validation rule types, affect targets that don't resolve or address array rows, dangling condition/expression paths, colliding `dependsOn` terminals, duplicate section/page ids, misplaced wizard pages.
+- **Linting** — `validateDefinition` rejects definitions the engine would silently mishandle: unknown validation rule types and malformed rule operands (`minLength: "8"`, a regex that doesn't compile), affect targets that don't resolve or address array rows, dangling condition/expression paths, colliding `dependsOn` terminals, duplicate section/page ids, misplaced wizard pages.
 - **Open validation** — `buildFormSchema` takes host-defined `rules`, a `validationResolver` for async `remote` checks (the schema goes async transparently), and an interpolated `messages` catalog for i18n.
 - **Transient fields** — `transient: true` keeps a field in the form (rendered, validated, readable through the store) but strips it from the parsed values a submit delivers, so derived-for-display state never leaks into the data contract.
 - **Hydration** — `buildInitialInput(definition, savedRecord)` merges host data over declared initials for edit workflows.

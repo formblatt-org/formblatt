@@ -279,6 +279,39 @@ function lintFields(
   }
 }
 
+/** Checks a built-in rule's operand; returns what it should have been, or nothing when fine. */
+type OperandCheck = (value: unknown) => string | undefined;
+
+const finiteNumber: OperandCheck = value =>
+  typeof value === "number" && Number.isFinite(value) ? undefined : "a finite number";
+
+const isoDateString: OperandCheck = value =>
+  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? undefined : "an ISO date string (yyyy-mm-dd)";
+
+const regexPattern: OperandCheck = value => {
+  if (typeof value !== "string") return "a pattern string";
+  try {
+    new RegExp(value);
+    return undefined;
+  } catch {
+    return "a compilable pattern (this one throws at schema build)";
+  }
+};
+
+/**
+ * Operand contracts of the built-in rules, per kind. The shape schema types
+ * `value` as `unknown` (custom rules may take anything), so a wrong operand
+ * would otherwise reach the builder's cast — and either throw at schema build
+ * (an invalid `regex`) or compare nonsense forever (`minLength: "abc"`).
+ */
+const OPERAND_CHECKS: Record<ValueField["kind"], Record<string, OperandCheck>> = {
+  string: { minLength: finiteNumber, maxLength: finiteNumber, regex: regexPattern },
+  number: { minValue: finiteNumber, maxValue: finiteNumber },
+  date: { minValue: isoDateString, maxValue: isoDateString },
+  boolean: {},
+  enum: {},
+};
+
 function lintValidations(
   field: FieldDefinition,
   location: string,
@@ -294,11 +327,24 @@ function lintValidations(
 
   const known = KNOWN_VALIDATION_TYPES[field.kind];
   for (const rule of field.validations) {
-    if (rule.type === "remote" && typeof rule.value !== "string") {
-      error(issues, location, "remote rules route by `value` — it must name the resolver source");
+    if (rule.type === "remote") {
+      if (typeof rule.value !== "string") {
+        error(issues, location, "remote rules route by `value` — it must name the resolver source");
+      }
       continue;
     }
-    if (known.includes(rule.type) || context.customRuleTypes.includes(rule.type)) continue;
+
+    if (known.includes(rule.type)) {
+      const problem = OPERAND_CHECKS[field.kind][rule.type]?.(rule.value);
+      if (problem) {
+        error(issues, location,
+          `\`${rule.type}\` needs ${problem} as its \`value\`, got ${JSON.stringify(rule.value)}`);
+      }
+      continue;
+    }
+
+    // custom rules define their own operand contract — only the name is checkable
+    if (context.customRuleTypes.includes(rule.type)) continue;
     error(issues, location,
       `unknown validation "${rule.type}" for kind "${field.kind}" — the builder would silently drop it (known: ${known.join(", ")})`);
   }
