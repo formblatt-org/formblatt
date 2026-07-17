@@ -137,6 +137,13 @@ const definition = compiled.definition;
 const definitionError = compiled.error;
 if (definitionError) emit("error", definitionError);
 
+// the store is built once, so a swapped definition prop silently does nothing —
+// make the trap announce itself in dev
+if (isDevelopment()) {
+  watch(() => props.definition, () => warn("form",
+    `the definition prop changed after mount — DynamicForm reads it once; remount with :key to apply the new one`));
+}
+
 // surfacing raw validation output to END USERS would leak contract internals —
 // the default error box shows details in dev builds only
 const showErrorDetail = isDevelopment();

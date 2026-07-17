@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, inject, useId } from "vue";
-import type { FieldElementProps } from "@formisch/vue";
 import type { Option, ValueField } from "@formblatt/core";
 import { DEFAULT_UI_TEXT, FormContextKey } from "../form-context";
+import type { FieldBindings } from "../form-store";
 
 const props = defineProps<{
   field: ValueField;
   input: unknown;
-  /** formisch's element bindings (name, ref, event handlers) — spread onto the control. */
-  fieldProps: FieldElementProps;
+  /** The field's element bindings (name, ref, event handlers) — spread onto the control. */
+  fieldProps: FieldBindings;
   errors: string[] | null;
   /** Host-resolved choices; falls back to the field's static `options`. */
   options?: Option[];

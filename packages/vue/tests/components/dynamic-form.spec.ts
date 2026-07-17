@@ -437,6 +437,20 @@ describe("DynamicForm composed interactions", () => {
   });
 });
 
+describe("DynamicForm definition reactivity", () => {
+  it("warns in dev when the definition prop changes without a remount", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const wrapper = mount(DynamicForm, { props: { definition: simple } });
+
+    await wrapper.setProps({ definition: { ...simple, id: "form-simple-v2" } });
+    await settle();
+
+    const message = warn.mock.calls.map(call => String(call[0])).find(text => text.includes("remount"));
+    expect(message).toBeDefined();
+    warn.mockRestore();
+  });
+});
+
 describe("DynamicForm invalid definitions", () => {
   // an affect targeting a nonexistent field is a lint ERROR — validateDefinition rejects it
   const broken: FormDefinition = {

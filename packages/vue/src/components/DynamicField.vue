@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted } from "vue";
+import { computed, onUnmounted, watch } from "vue";
 import { isValueField, resolveFieldByPath, warn } from "@formblatt/core";
 import type { PathKey, ValueField } from "@formblatt/core";
 import { useFormContext } from "../form-context";
@@ -33,12 +33,18 @@ const field = computed<ValueField | undefined>(() => {
 
 // Placements count towards coverage by dotted name. A path with an index is
 // inside an array item — covered by the DynamicFieldArray that places the array.
-const trackedName = props.name
-  ?? (props.path?.every(key => typeof key === "string") ? props.path.join(".") : undefined);
-if (trackedName) {
-  ctx.register(trackedName);
-  onUnmounted(() => ctx.unregister(trackedName));
-}
+// Reactive: a changed `name`/`path` re-registers, keeping the tally truthful.
+const trackedName = computed(() =>
+  props.name ?? (props.path?.every(key => typeof key === "string") ? props.path.join(".") : undefined));
+
+watch(trackedName, (name, previous) => {
+  if (previous) ctx.unregister(previous);
+  if (name) ctx.register(name);
+}, { immediate: true });
+
+onUnmounted(() => {
+  if (trackedName.value) ctx.unregister(trackedName.value);
+});
 </script>
 
 <template>

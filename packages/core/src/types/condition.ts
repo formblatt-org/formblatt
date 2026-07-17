@@ -13,7 +13,10 @@ export type PathKey = string | number;
  * - `truthy` / `falsy` — JavaScript truthiness; `value` is ignored.
  * - `empty` / `notEmpty` — `null`, `undefined` or `""`. `0` and `false` are
  *   NOT empty, matching the engine's required checks.
- * - `gt` / `gte` / `lt` / `lte` — numeric comparison against `value`.
+ * - `gt` / `gte` / `lt` / `lte` — JavaScript relational comparison against
+ *   `value`: numbers compare numerically, strings lexicographically — which
+ *   makes ISO date strings compare in date order, and that is supported usage.
+ *   A number/string mix coerces like JS `>` does; don't rely on it.
  */
 export type ComparisonOperator =
   | "eq" | "ne"

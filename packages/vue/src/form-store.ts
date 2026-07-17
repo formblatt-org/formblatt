@@ -19,6 +19,13 @@ import type { FormSchema, PathKey, ValueReader } from "@formblatt/core";
 export type DynamicFormStore = FormStore<FormSchema>;
 
 /**
+ * formisch's per-field element bindings (name, ref, event handlers) under OUR
+ * name — public props reference this alias, so an upstream rename in the RC
+ * is absorbed here instead of breaking consumers.
+ */
+export type FieldBindings = import("@formisch/vue").FieldElementProps;
+
+/**
  * formisch types `path` as a non-empty tuple derived from the schema; formblatt
  * builds paths at runtime, and they can address array items — which a
  * `GenericSchema<Record<string, unknown>>` cannot express. Every store access
