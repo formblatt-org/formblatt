@@ -13,6 +13,7 @@ import {
   createReader,
   readAllInput,
   readInput,
+  writeInput,
   type DynamicFormStore,
 } from "../form-store";
 
@@ -21,6 +22,8 @@ interface DynamicOptions {
   path: PathKey[];
   source: string;
   dependsOn: DependencyPaths;
+  /** A `multiple` enum holds a `string[]` — reconciling filters it instead of comparing it whole. */
+  multiple: boolean;
 }
 
 /**
@@ -81,14 +84,20 @@ export function useOptions(
    * — including after a successful load with NO options (nothing is choosable,
    * so no value can be right, and a stale one would silently submit). A FAILED
    * load keeps the value: wiping user state over an outage compounds the failure.
+   * A `multiple` enum's `string[]` is filtered down to the choices still offered
+   * rather than compared whole — switching a dependency keeps the overlap.
    */
   const reconcileValue = (field: DynamicOptions) => {
     const value = readInput(form, field.path);
     if (isEmpty(value)) return;
     if (errors.isSet(field.path)) return;
 
-    const options = optionsByPath[toPathKey(field.path)] ?? [];
-    if (!options.some(option => option.value === value)) {
+    const offered = new Set((optionsByPath[toPathKey(field.path)] ?? []).map(option => option.value));
+
+    if (field.multiple && Array.isArray(value)) {
+      const kept = value.filter((choice): choice is string => offered.has(choice as string));
+      if (kept.length !== value.length) writeInput(form, field.path, kept);
+    } else if (!offered.has(value as string)) {
       clearInput(form, field.path);
     }
   };
@@ -141,6 +150,7 @@ function collectDynamicOptions(definition: FormDefinition): DynamicOptions[] {
       path,
       source: field.optionsSource.source,
       dependsOn: field.optionsSource.dependsOn ?? [],
+      multiple: !!field.multiple,
     });
   }
 

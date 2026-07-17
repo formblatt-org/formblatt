@@ -80,6 +80,33 @@ describe("useOptions", () => {
     expect(readInput(form, ["state"])).toBeUndefined();
   });
 
+  it("filters a multiple enum's selection down to the choices still offered", async () => {
+    const multiDef: FormDefinition = {
+      id: "options-multi",
+      fields: [
+        { name: "plan", kind: "enum", required: false, options: [{ label: "S", value: "s" }, { label: "M", value: "m" }] },
+        {
+          name: "addons", kind: "enum", multiple: true, required: false,
+          optionsSource: { source: "addons", dependsOn: [["plan"]] },
+        },
+      ],
+    };
+    const addonsByPlan: Record<string, string[]> = { s: ["backup", "audit"], m: ["backup", "sso"] };
+    const resolve: OptionsResolver = (_source, { deps }) =>
+      (addonsByPlan[deps.plan as string] ?? []).map(value => ({ label: value, value }));
+
+    const { form } = withForm(multiDef, form => useOptions(form, multiDef, resolve));
+
+    writeInput(form, ["plan"], "s");
+    await settle();
+    writeInput(form, ["addons"], ["backup", "audit"]);
+
+    // plan M keeps "backup" but no longer offers "audit" — only the overlap survives
+    writeInput(form, ["plan"], "m");
+    await settle();
+    expect(readInput(form, ["addons"])).toEqual(["backup"]);
+  });
+
   it("clears the value when a successful load returns NO options — nothing is choosable", async () => {
     const { form } = withForm(definition, form => useOptions(form, definition, resolveStates));
 
