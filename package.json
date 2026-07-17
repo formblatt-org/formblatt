@@ -10,6 +10,7 @@
     "dev": "pnpm --filter formblatt-demo dev",
     "build": "pnpm --filter formblatt-demo build",
     "test": "pnpm -r --filter \"@formblatt/*\" run test",
+    "test:coverage": "pnpm -r --filter \"@formblatt/*\" run test:coverage",
     "build:packages": "pnpm -r --filter \"@formblatt/*\" run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint .",
