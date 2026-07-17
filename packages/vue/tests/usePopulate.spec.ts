@@ -179,6 +179,31 @@ describe("usePopulate", () => {
     expect(signals[0]!.aborted).toBe(true);
   });
 
+  it("keeps isValid truthful across populate and revert on a validate-initial form", async () => {
+    const strict: FormDefinition = {
+      ...definition,
+      id: "populate-validated",
+      validate: "initial",
+      revalidate: "submit", // programmatic writes do NOT auto-revalidate in this mode
+      fields: [
+        definition.fields[0]!,
+        { name: "firstName", kind: "string" }, // required
+        ...definition.fields.slice(2),
+      ],
+    };
+    const { form } = withForm(strict, form => usePopulate(form, strict, resolveProfile));
+    await settle();
+    expect(form.isValid).toBe(false); // firstName is empty
+
+    writeInput(form, ["profile"], "alice"); // populate fills firstName
+    await settle();
+    expect(form.isValid).toBe(true);
+
+    writeInput(form, ["profile"], undefined); // revert empties it again
+    await settle();
+    expect(form.isValid).toBe(false);
+  });
+
   it("flags hasPopulateError on a failed lookup and clears it on the next attempt", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     let failing = true;

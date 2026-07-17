@@ -49,6 +49,17 @@ export function usePopulate(
   /** Each rule's pre-populate values, keyed by its trigger path, so they can be restored. */
   const overwrittenByRule = new Map<string, Overwritten>();
 
+  /**
+   * A wholesale multi-field write only auto-revalidates under
+   * `revalidate: "input"` — force a pass so `isValid` stays truthful, but ONLY
+   * once the form has validated at all (a submit happened, or `validate:
+   * "initial"`): a pristine submit-mode form must not light its errors up over
+   * a populate. Applies to both directions — apply and revert.
+   */
+  const revalidateWholesale = () => {
+    if (form.isSubmitted || definition.validate === "initial") revalidate(form);
+  };
+
   const revert = (rule: PopulateAffect) => {
     const key = toPathKey(rule.trigger);
     const overwritten = overwrittenByRule.get(key);
@@ -56,8 +67,7 @@ export function usePopulate(
 
     overwritten.forEach((previous, name) => writeInput(form, name.split("."), previous));
     overwrittenByRule.delete(key);
-    // the restored fields changed values wholesale — keep isValid truthful
-    revalidate(form);
+    revalidateWholesale();
   };
 
   const populate = async (rule: PopulateAffect, value: unknown) => {
@@ -74,6 +84,7 @@ export function usePopulate(
 
       if (!isCurrent()) return; // the trigger changed again while this lookup was in flight
       applyResult(form, definition, rule, result, overwrittenByRule);
+      revalidateWholesale();
     } catch (cause) {
       // an aborted attempt was superseded by us — that is not a resolver failure
       if (!isAbortError(cause)) {
