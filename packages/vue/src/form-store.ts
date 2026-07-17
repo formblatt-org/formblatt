@@ -73,12 +73,11 @@ export function resetField(form: DynamicFormStore, path: readonly PathKey[]): vo
   reset(form, args(path));
 }
 
-/** Re-runs validation — needed after a programmatic write that may have cleared errors. */
-export function revalidate(form: DynamicFormStore): void {
-  validate(form);
-}
-
-/** Runs a full validation pass and resolves once its results are in the store. */
+/**
+ * Runs a full validation pass and resolves once its results are in the store.
+ * Await it to gate on the outcome (a wizard's Next), or fire-and-forget after
+ * a programmatic write that may have changed validity.
+ */
 export async function runValidation(form: DynamicFormStore): Promise<void> {
   await validate(form);
 }

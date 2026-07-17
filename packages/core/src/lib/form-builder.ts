@@ -14,6 +14,7 @@ import { conditionalRequiredFields } from "./affect";
 import { evaluate, isEmpty, type ValueReader } from "./condition";
 import { reportError, warn } from "./diagnostics";
 import { isValueField } from "./field";
+import { interpolate } from "./interpolate";
 import { getByPath, toPathKey } from "./path";
 
 /** The shape a form's data takes: field names at the top level. */
@@ -499,12 +500,6 @@ function catalogText(
 ): string | undefined {
   const template = context.messages[key];
   return template && interpolate(template, { field: field.label ?? field.name, value });
-}
-
-/** Fills `{field}` / `{value}` placeholders; unknown placeholders stay verbatim. */
-function interpolate(template: string, params: Record<string, unknown>): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) =>
-    params[key] === undefined ? match : String(params[key]));
 }
 
 /**

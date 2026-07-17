@@ -11,7 +11,7 @@ import { createLatestOnly, isAbortError } from "../internal/latest-only";
 import {
   readAllInput,
   readInput,
-  revalidate,
+  runValidation,
   writeInput,
   type DynamicFormStore,
 } from "../form-store";
@@ -57,7 +57,7 @@ export function usePopulate(
    * a populate. Applies to both directions — apply and revert.
    */
   const revalidateWholesale = () => {
-    if (form.isSubmitted || definition.validate === "initial") revalidate(form);
+    if (form.isSubmitted || definition.validate === "initial") void runValidation(form);
   };
 
   const revert = (rule: PopulateAffect) => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, useTemplateRef } from "vue";
-import { collectFieldNames, directFieldNames } from "@formblatt/core";
+import { collectFieldNames, directFieldNames, interpolate } from "@formblatt/core";
 import type { ResolvedNode } from "@formblatt/core";
 import { useFormContext } from "../form-context";
 import { focusFirstInvalid } from "../internal/focus";
@@ -42,9 +42,7 @@ if (pages.enabled) {
 }
 
 const stepText = computed(() =>
-  ctx.text.value.stepLabel
-    .replace("{current}", String(pages.index.value + 1))
-    .replace("{total}", String(pages.count.value)));
+  interpolate(ctx.text.value.stepLabel, { current: pages.index.value + 1, total: pages.count.value }));
 
 /** A blocked step keeps the user in place — point them at the first problem. */
 const onNext = async () => {
