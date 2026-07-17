@@ -49,18 +49,12 @@ const itemFields = computed<ItemField[]>(() => {
 const itemPath = (index: number, child?: string): PathKey[] =>
   child == null ? [...path.value, index] : [...path.value, index, child];
 
-/** Builds a row control's props once, rather than rebuilding its path for each of them. */
-const controlProps = (index: number, entry: ItemField) => {
-  const fieldPath = [...path.value, index, ...entry.relPath];
-
-  return {
-    of: ctx.form,
-    path: fieldPath,
-    field: entry.field,
-    options: ctx.optionsFor(fieldPath),
-    loading: ctx.isLoadingOptions(fieldPath) || ctx.isComputing(fieldPath),
-  };
-};
+/** Builds a row control's props once — FieldControl self-serves options/loading from the context. */
+const controlProps = (index: number, entry: ItemField) => ({
+  of: ctx.form,
+  path: [...path.value, index, ...entry.relPath],
+  field: entry.field,
+});
 
 const insert = (initialInput?: unknown) => insertItem(ctx.form, path.value, initialInput);
 const remove = (index: number) => removeItem(ctx.form, path.value, index);

@@ -48,12 +48,5 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <FieldControl
-    v-if="field && ctx.isVisible(fieldPath)"
-    :of="ctx.form"
-    :path="fieldPath"
-    :field="field"
-    :options="ctx.optionsFor(fieldPath)"
-    :loading="ctx.isLoadingOptions(fieldPath) || ctx.isComputing(fieldPath)"
-  />
+  <FieldControl v-if="field && ctx.isVisible(fieldPath)" :of="ctx.form" :path="fieldPath" :field="field" />
 </template>

@@ -68,8 +68,6 @@ const onNext = async () => {
         :of="ctx.form"
         :path="node.path"
         :field="node.field"
-        :options="ctx.optionsFor(node.path)"
-        :loading="ctx.isLoadingOptions(node.path) || ctx.isComputing(node.path)"
       />
       <DynamicSection v-else-if="node.type === 'section'" :id="node.id" />
     </template>

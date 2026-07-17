@@ -10,8 +10,9 @@ const props = defineProps<{
   of: DynamicFormStore;
   path: PathKey[];
   field: ValueField;
-  /** Host-resolved choices, when the field has an `optionsSource`. */
+  /** Overrides the context's host-resolved choices — for use outside a DynamicForm. */
   options?: Option[];
+  /** Overrides the context's loading state — for use outside a DynamicForm. */
   loading?: boolean;
 }>()
 
@@ -23,8 +24,12 @@ const fieldPath = computed(() => props.path as any);
 const ctx = inject(FormContextKey, null);
 const gatedOnTouch = computed(() => ctx?.errorDisplay === "touched");
 
-// read from the context rather than yet another pass-through prop — every
-// placement (layout, section, field, array row) gets it for free
+// options, loading and error state are read from the context rather than
+// passed through by every placement (layout, section, field, array row) —
+// one prop contract, four call sites that cannot drift
+const options = computed(() => props.options ?? ctx?.optionsFor(props.path));
+const loading = computed(() =>
+  props.loading ?? (ctx ? ctx.isLoadingOptions(props.path) || ctx.isComputing(props.path) : false));
 const loadError = computed(() =>
   ctx ? ctx.hasOptionsError(props.path) || ctx.hasComputedError(props.path) : false);
 

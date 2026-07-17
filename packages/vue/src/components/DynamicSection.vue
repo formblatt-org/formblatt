@@ -27,8 +27,6 @@ usePlacedFields(section.value ? directFieldNames(section.value.children) : []);
         :of="ctx.form"
         :path="child.path"
         :field="child.field"
-        :options="ctx.optionsFor(child.path)"
-        :loading="ctx.isLoadingOptions(child.path) || ctx.isComputing(child.path)"
       />
       <DynamicSection v-else-if="child.type === 'section'" :id="child.id" />
     </template>
