@@ -433,10 +433,10 @@ function hasTransientFields(fields: readonly FieldDefinition[]): boolean {
   return fields.some(field =>
     field.transient ||
     (field.kind === "object" && hasTransientFields(field.fields)) ||
-    (field.kind === "array" && field.item.kind === "object" && hasTransientFields(field.item.fields)));
+    (field.kind === "array" && hasTransientFields([field.item])));
 }
 
-/** Deletes transient keys from the parse output, per row inside arrays. Mutates — the output is this parse's own object tree. */
+/** Deletes transient keys from the parse output, per row inside arrays — nested arrays included. Mutates — the output is this parse's own object tree. */
 function stripTransient(fields: readonly FieldDefinition[], data: unknown): void {
   if (typeof data !== "object" || data === null) return;
   const record = data as Record<string, unknown>;
@@ -446,10 +446,10 @@ function stripTransient(fields: readonly FieldDefinition[], data: unknown): void
       delete record[field.name];
     } else if (field.kind === "object") {
       stripTransient(field.fields, record[field.name]);
-    } else if (field.kind === "array" && field.item.kind === "object") {
-      const itemFields = field.item.fields;
+    } else if (field.kind === "array") {
       const rows = record[field.name];
-      if (Array.isArray(rows)) rows.forEach(row => stripTransient(itemFields, row));
+      // each row IS an item value: strip it as a one-field level named after the item
+      if (Array.isArray(rows)) rows.forEach(row => stripTransient([field.item], { [field.item.name]: row }));
     }
   }
 }

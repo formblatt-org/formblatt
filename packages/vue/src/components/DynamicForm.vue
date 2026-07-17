@@ -177,10 +177,16 @@ const isBusy = computed(() =>
 /** Unsaved changes — for leave guards and disabled save buttons. */
 const isDirty = computed(() => isFormDirty(form));
 
+// resolveField runs from render paths — one bad name in a slot must warn once, not per keystroke
+const warnedUnknownFields = new Set<string>();
+
 const resolveField = (name: string): ValueField | undefined => {
   const field = fieldsByName.value[name];
   if (!field) {
-    warn("form", `unknown field "${name}"`);
+    if (!warnedUnknownFields.has(name)) {
+      warnedUnknownFields.add(name);
+      warn("form", `unknown field "${name}"`);
+    }
     return undefined;
   }
   return isValueField(field) ? field : undefined;

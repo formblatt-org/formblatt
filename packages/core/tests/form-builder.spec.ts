@@ -554,6 +554,34 @@ describe("transient fields", () => {
     });
   });
 
+  it("strips transient fields inside NESTED arrays", () => {
+    const nested: FormDefinition = {
+      id: "transient-nested-arrays",
+      fields: [{
+        name: "groups", kind: "array", item: {
+          name: "group", kind: "object", fields: [
+            { name: "title", kind: "string" },
+            {
+              name: "rows", kind: "array", required: false, item: {
+                name: "row", kind: "object", fields: [
+                  { name: "qty", kind: "number" },
+                  { name: "swatch", kind: "string", required: false, transient: true },
+                ],
+              },
+            },
+          ],
+        },
+      }],
+    };
+
+    const result = v.safeParse(buildFormSchema(nested) as v.GenericSchema<Record<string, unknown>>, {
+      groups: [{ title: "A", rows: [{ qty: 1, swatch: "#fff" }] }],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.output).toEqual({ groups: [{ title: "A", rows: [{ qty: 1 }] }] });
+  });
+
   it("still validates transient fields — stripped from the output, not from the rules", () => {
     const strict: FormDefinition = {
       id: "transient-validated",
