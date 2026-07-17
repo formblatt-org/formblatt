@@ -3,6 +3,7 @@ import { computed, inject, useId } from "vue";
 import type { Option, ValueField } from "@formblatt/core";
 import { DEFAULT_UI_TEXT, FormContextKey } from "../form-context";
 import type { FieldBindings } from "../form-store";
+import { BUILT_IN_CONTROL_ENTRIES, GENERIC_CONTROL, MULTIPLE_CONTROL, type ControlEntry } from "../controls/registry";
 
 const props = defineProps<{
   field: ValueField;
@@ -29,6 +30,31 @@ const text = computed(() => ctx?.text.value ?? DEFAULT_UI_TEXT);
 const customControl = computed(() =>
   props.field.control ? ctx?.controls[props.field.control] : undefined);
 
+/**
+ * The built-in control to render: the registry entry for the `control` name,
+ * except a `multiple` enum renders as a checkbox group (radio wins over
+ * `multiple`, matching the pre-registry behavior) and unmatched names fall
+ * through to the generic input.
+ */
+const entry = computed<ControlEntry>(() => {
+  const named = BUILT_IN_CONTROL_ENTRIES[props.field.control ?? "text"];
+  if (props.field.control === "radio" && named) return named;
+  if (props.field.multiple) return MULTIPLE_CONTROL;
+  return named ?? GENERIC_CONTROL;
+});
+
+/** The uniform props every built-in control receives. See controls/contract.ts. */
+const controlProps = computed(() => ({
+  field: props.field,
+  input: props.input,
+  fieldProps: props.fieldProps,
+  aria: aria.value,
+  choices: choices.value,
+  disabled: isDisabled.value,
+  loading: !!props.loading,
+  text: text.value,
+}));
+
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
 
@@ -48,46 +74,6 @@ const aria = computed(() => ({
   "aria-describedby": isInvalid.value ? errorsId : undefined,
   "aria-required": isRequired.value || undefined,
 }));
-
-/**
- * An emptied number input reports `valueAsNumber` as `NaN` — store `undefined`
- * instead, so required/optional semantics apply rather than a NaN type error.
- */
-const onNumberInput = (event: Event) => {
-  const value = (event.target as HTMLInputElement).valueAsNumber;
-  emit("update:input", Number.isNaN(value) ? undefined : value);
-};
-
-/**
- * The placeholder option's `""` means "no selection", not a value — store
- * `undefined`, so an optional enum passes and a required one reports missing.
- */
-const onSelectChange = (event: Event) => {
-  const value = (event.target as HTMLSelectElement).value;
-  emit("update:input", value === "" ? undefined : value);
-};
-
-/**
- * Toggles one choice of a `multiple` enum. The stored `string[]` is rebuilt in
- * option order, so the submitted value doesn't depend on click order — `[]`
- * when nothing is checked.
- */
-const onMultiToggle = (value: string, event: Event) => {
-  const next = new Set(Array.isArray(props.input) ? (props.input as string[]) : []);
-  if ((event.target as HTMLInputElement).checked) next.add(value);
-  else next.delete(value);
-  emit("update:input", choices.value.filter(choice => next.has(choice.value)).map(choice => choice.value));
-};
-
-const isSelected = (value: string) => Array.isArray(props.input) && props.input.includes(value);
-
-const onCheckboxChange = (event: Event) => {
-  emit("update:input", (event.target as HTMLInputElement).checked);
-};
-
-const onTextInput = (event: Event) => {
-  emit("update:input", (event.target as HTMLInputElement | HTMLTextAreaElement).value);
-};
 </script>
 
 <template>
@@ -107,74 +93,22 @@ const onTextInput = (event: Event) => {
       @update:input="emit('update:input', $event)"
     />
 
-    <!-- radios label each option, so the group is a fieldset, not another label -->
-    <fieldset v-else-if="field.control === 'radio'" class="radio-group" role="radiogroup" v-bind="aria">
-      <legend v-if="field.label">{{ field.label }}</legend>
-      <label v-for="choice in choices" :key="choice.value" class="radio-option">
-        <input
-          type="radio"
-          :name="fieldProps.name"
-          :value="choice.value"
-          :checked="input === choice.value"
-          :disabled="isDisabled"
-          @change="emit('update:input', choice.value)"
-          @blur="fieldProps.onBlur"
-        />
-        <span>{{ choice.label }}</span>
-      </label>
-    </fieldset>
-
-    <!-- a multi-enum is a checkbox group: plain clicks toggle — a <select multiple> would demand ctrl+click, which nobody discovers -->
-    <fieldset v-else-if="field.multiple" class="checkbox-group" v-bind="aria">
-      <legend v-if="field.label">
-        {{ field.label }}
-        <span v-if="loading" class="spinner-sm" aria-hidden="true" />
-      </legend>
-      <label v-for="choice in choices" :key="choice.value" class="checkbox-option">
-        <input
-          type="checkbox"
-          :name="fieldProps.name"
-          :value="choice.value"
-          :checked="isSelected(choice.value)"
-          :disabled="isDisabled"
-          @change="onMultiToggle(choice.value, $event)"
-          @blur="fieldProps.onBlur"
-        />
-        <span>{{ choice.label }}</span>
-      </label>
-    </fieldset>
+    <!-- group controls (radio, multi-enum checkboxes) render their own fieldset + legend -->
+    <component
+      :is="entry.component"
+      v-else-if="entry.group"
+      v-bind="controlProps"
+      @update:input="emit('update:input', $event)"
+    />
 
     <label v-else>
         <span v-if="field.label">
           {{ field.label }}
-          <!-- selects show their spinner inside the control instead -->
-          <span v-if="loading && field.control !== 'select'" class="spinner-sm" aria-hidden="true" />
+          <!-- controls with their own indicator (select) show it in place instead -->
+          <span v-if="loading && !entry.ownLoadingIndicator" class="spinner-sm" aria-hidden="true" />
         </span>
 
-        <!-- an <option> can only hold text, so the spinner is overlaid and the text shifted right -->
-        <div v-if="field.control === 'select'" class="select-wrap" :class="{ 'is-loading': loading }">
-          <span v-if="loading" class="spinner-select" aria-hidden="true" />
-
-          <select v-bind="{ ...fieldProps, ...aria }" :value="input" :disabled="isDisabled" @change="onSelectChange">
-            <option value="">{{ loading ? text.loading : text.selectPlaceholder }}</option>
-            <option v-for="choice in choices" :key="choice.value" :value="choice.value">
-              {{ choice.label }}
-            </option>
-          </select>
-        </div>
-
-        <input v-else-if="field.control === 'checkbox'" type="checkbox" v-bind="{ ...fieldProps, ...aria }"
-            :disabled="isDisabled" :checked="!!input" @change="onCheckboxChange" />
-
-        <input v-else-if="field.control === 'number'" type="number" v-bind="{ ...fieldProps, ...aria }"
-            :disabled="isDisabled" :value="input" @input="onNumberInput" />
-
-        <!-- a real <textarea> — through the generic branch it would become <input type="textarea">, which browsers render as a single-line text input -->
-        <textarea v-else-if="field.control === 'textarea'" v-bind="{ ...fieldProps, ...aria }"
-            :disabled="isDisabled" :value="(input as string | undefined)" @input="onTextInput" />
-
-        <input v-else :type="field.control ?? 'text'" v-bind="{ ...fieldProps, ...aria }"
-            :disabled="isDisabled" :value="input" @input="onTextInput" />
+        <component :is="entry.component" v-bind="controlProps" @update:input="emit('update:input', $event)" />
     </label>
 
     <!-- a resolver failure is a system problem, not a validation error — its own line, amber not red -->
@@ -213,113 +147,8 @@ const onTextInput = (event: Event) => {
   animation: spin .6s linear infinite;
 }
 
-.select-wrap {
-  position: relative;
-}
-
-.spinner-select {
-  position: absolute;
-  left: .65rem;
-  top: 50%;
-  margin-top: -6px; /* half the height — avoids translateY, which the spin keyframe would overwrite */
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--fb-color-border, #d1d5db);
-  border-top-color: var(--fb-color-primary, #4f46e5);
-  border-radius: 50%;
-  animation: spin .6s linear infinite;
-  pointer-events: none;
-}
-
-/* make room for the spinner so it sits in front of the "Loading…" text */
-.select-wrap.is-loading select {
-  padding-left: 2.05rem;
-}
-
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.field input,
-.field select,
-.field textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: .5rem .625rem;
-  font: inherit;
-  font-size: .9rem;
-  color: var(--fb-color-text, #1f2937);
-  background: var(--fb-color-surface, #fff);
-  border: 1px solid var(--fb-color-border, #d1d5db);
-  border-radius: var(--fb-radius, 8px);
-  transition: border-color .15s, box-shadow .15s;
-}
-
-.field textarea {
-  min-height: 4.5rem;
-  resize: vertical;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
-  outline: none;
-  border-color: var(--fb-color-primary, #4f46e5);
-  box-shadow: var(--fb-focus-ring, 0 0 0 3px rgba(79, 70, 229, .15));
-}
-
-.field input[type="checkbox"] {
-  width: auto;
-  margin-right: .5rem;
-  vertical-align: middle;
-}
-
-.field input:disabled,
-.field select:disabled,
-.field textarea:disabled {
-  color: var(--fb-color-disabled-text, #9ca3af);
-  background: var(--fb-color-disabled-bg, #f3f4f6);
-  cursor: not-allowed;
-}
-
-.radio-group,
-.checkbox-group {
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
-.radio-group legend,
-.checkbox-group legend {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  margin-bottom: .35rem;
-  padding: 0;
-  font-size: .85rem;
-  font-weight: 550;
-  color: var(--fb-color-label, #374151);
-}
-
-/* .field .radio-option outranks `.field label`, whose display: block would defeat the flex row */
-.field .radio-option,
-.field .checkbox-option {
-  display: flex;
-  align-items: center;
-  gap: .45rem;
-  padding: .15rem 0;
-  font-size: .9rem;
-  color: var(--fb-color-text, #1f2937);
-  cursor: pointer;
-}
-
-/* escape the full-width text-input styling above, or the control stretches past its label */
-.field .radio-option input,
-.field .checkbox-option input {
-  flex: none;
-  width: auto;
-  margin: 0;
-  padding: 0;
 }
 
 .field-errors {
@@ -334,5 +163,46 @@ const onTextInput = (event: Event) => {
   margin: .4rem 0 0;
   color: var(--fb-color-warning, #b45309);
   font-size: .8rem;
+}
+</style>
+
+<!-- UNSCOPED on purpose: the base control styling must reach the registry's
+     control components (child DOM a scoped selector cannot see). Only elements
+     carrying the fb-control class are affected — host custom controls are not. -->
+<style>
+.fb-control {
+  width: 100%;
+  box-sizing: border-box;
+  padding: .5rem .625rem;
+  font: inherit;
+  font-size: .9rem;
+  color: var(--fb-color-text, #1f2937);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+textarea.fb-control {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.fb-control:focus {
+  outline: none;
+  border-color: var(--fb-color-primary, #4f46e5);
+  box-shadow: var(--fb-focus-ring, 0 0 0 3px rgba(79, 70, 229, .15));
+}
+
+.fb-control[type="checkbox"] {
+  width: auto;
+  margin-right: .5rem;
+  vertical-align: middle;
+}
+
+.fb-control:disabled {
+  color: var(--fb-color-disabled-text, #9ca3af);
+  background: var(--fb-color-disabled-bg, #f3f4f6);
+  cursor: not-allowed;
 }
 </style>
