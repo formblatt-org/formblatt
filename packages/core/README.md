@@ -37,6 +37,14 @@ Key semantics (each documented in detail on the types):
 - **Migrations** — definitions carry a `schemaVersion`; append-only migrations bring stored documents to the current shape.
 - **Diagnostics** — recoverable problems (unknown layout fields, rejected resolver promises) log to the console by default; `setDiagnosticsHandler` routes them to your telemetry instead. Contract violations still throw.
 
+## Trust model
+
+Read this before serving definitions in production:
+
+- **Definitions are trusted input.** Serve them only from your own backend. A hostile definition cannot inject script (nothing is rendered as HTML), but it can degrade the client — e.g. a `regex` rule that compiles fine yet backtracks catastrophically (ReDoS) will freeze the tab. `validateDefinition` checks that a pattern *compiles*, not that it is *safe*.
+- **Client-side validation is UX, not enforcement.** Everything the built schema checks runs in the user's browser and can be bypassed wholesale — always revalidate submitted data server-side against the same definition (`buildFormSchema` runs in Node too). Dynamic enums (`optionsSource`) accept *any* string client-side by design, since the valid set only exists at runtime.
+- **`initialData` is host data, not user input.** It merges directly into form state; treat it with the same trust as the definition itself.
+
 This package has no framework dependency — `valibot` is its only peer. For rendering, see [`@formblatt/vue`](https://www.npmjs.com/package/@formblatt/vue).
 
 ## License

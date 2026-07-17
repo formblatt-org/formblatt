@@ -87,6 +87,8 @@ The scoped class names (`.field`, `.field-errors`, …) are implementation detai
 - **Resolver failures are visible.** A field whose options load or source-mode recompute rejects shows the `loadFailed` text (its own amber line — a system problem, not a validation error) and reports through `hasOptionsError(path)` / `hasComputedError(path)` (context + slot props); a failed populate lookup sets `hasPopulateError` (slot prop / expose). Flags clear when the next attempt starts.
 - **Diagnostics are routable.** Everything the engine warns or reports goes through `setDiagnosticsHandler` from `@formblatt/core` — point it at your telemetry instead of the console.
 
+Definitions are trusted input and client-side validation is UX, not enforcement — see the [trust model](https://github.com/formblatt-org/formblatt/tree/main/packages/core#trust-model) in `@formblatt/core` before serving forms in production.
+
 ## License
 
 [MIT](https://github.com/formblatt-org/formblatt/blob/main/LICENSE)
