@@ -300,7 +300,7 @@ describe("computed and dynamic options", () => {
     expect(lint(def, "error")).toEqual([expect.stringContaining("optionsSource is not supported inside array items")]);
   });
 
-  it("rejects unresolvable dependsOn paths and terminal-name collisions", () => {
+  it("rejects unresolvable dependsOn paths; shared terminal names are fine (deps key by dotted path)", () => {
     const def: FormDefinition = {
       id: "x",
       fields: [
@@ -309,9 +309,9 @@ describe("computed and dynamic options", () => {
         { name: "c", kind: "string", computed: { source: "s", dependsOn: [["a", "x"], ["b", "x"], ["ghost"]] } },
       ],
     };
-    const errors = lint(def, "error");
-    expect(errors).toContainEqual(expect.stringContaining('dependsOn path ["ghost"] does not resolve'));
-    expect(errors).toContainEqual(expect.stringContaining("terminal names collide (x)"));
+    expect(lint(def, "error")).toEqual([
+      expect.stringContaining('dependsOn path ["ghost"] does not resolve'),
+    ]);
   });
 });
 

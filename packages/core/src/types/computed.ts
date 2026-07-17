@@ -67,8 +67,9 @@ export type Computed =
  * and a result superseded by a dependency change is discarded.
  *
  * @param source - The routing key from the definition (`computed.source`).
- * @param ctx.deps - Declared dependencies keyed by each path's LAST segment —
- *   `dependsOn: [["lines"]]` arrives as `deps.lines`; keep terminal names distinct.
+ * @param ctx.deps - Declared dependencies keyed by the DOTTED path —
+ *   `dependsOn: [["lines"]]` arrives as `deps.lines`, `[["billing", "country"]]`
+ *   as `deps["billing.country"]`.
  * @param ctx.signal - Aborted when a newer recompute supersedes this one —
  *   pass it to `fetch` so the stale request is cancelled, not just ignored.
  */

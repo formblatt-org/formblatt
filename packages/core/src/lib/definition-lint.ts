@@ -471,7 +471,7 @@ function rowRootOf(definition: FormDefinition, location: string): readonly Field
   return root;
 }
 
-/** dependsOn paths must resolve, and their terminal names must be distinct — `deps` is keyed by them. */
+/** dependsOn paths must resolve — `deps` is keyed by the dotted path, so distinct paths never collide. */
 function lintDependencies(
   definition: FormDefinition,
   dependsOn: readonly (readonly PathKey[])[],
@@ -479,13 +479,6 @@ function lintDependencies(
   issues: LintIssue[],
 ): void {
   lintReadPaths(definition.fields, dependsOn, location, "dependsOn path", issues);
-
-  const terminals = dependsOn.map(path => String(path[path.length - 1]));
-  const collisions = terminals.filter((name, index) => terminals.indexOf(name) !== index);
-  if (collisions.length) {
-    error(issues, location,
-      `dependsOn terminal names collide (${[...new Set(collisions)].join(", ")}) — resolver deps are keyed by the last segment`);
-  }
 }
 
 function lintObjectChecks(field: ObjectField, location: string, issues: LintIssue[]): void {

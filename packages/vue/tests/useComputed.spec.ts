@@ -193,7 +193,7 @@ describe("useComputed — source mode", () => {
     ],
   };
 
-  it("passes dependencies keyed by their last path segment", async () => {
+  it("passes dependencies keyed by their dotted path", async () => {
     const resolve = vi.fn<ComputedResolver>(() => 8.25);
     withForm(definition, form => useComputed(form, definition, resolve));
     await settle();
@@ -201,6 +201,27 @@ describe("useComputed — source mode", () => {
     expect(resolve).toHaveBeenCalledWith("tax", expect.objectContaining({
       path: ["tax"],
       deps: { subtotal: 100 },
+    }));
+  });
+
+  it("keys nested dependencies by the FULL dotted path — same leaf names never collide", async () => {
+    const nestedDef: FormDefinition = {
+      id: "computed-nested-deps",
+      fields: [
+        { name: "billing", kind: "object", fields: [{ name: "country", kind: "string", initial: "de" }] },
+        { name: "shipping", kind: "object", fields: [{ name: "country", kind: "string", initial: "us" }] },
+        {
+          name: "rate", kind: "number", required: false,
+          computed: { source: "rate", dependsOn: [["billing", "country"], ["shipping", "country"]] },
+        },
+      ],
+    };
+    const resolve = vi.fn<ComputedResolver>(() => 0);
+    withForm(nestedDef, form => useComputed(form, nestedDef, resolve));
+    await settle();
+
+    expect(resolve).toHaveBeenCalledWith("rate", expect.objectContaining({
+      deps: { "billing.country": "de", "shipping.country": "us" },
     }));
   });
 

@@ -6,15 +6,15 @@ export type DependencyPaths = readonly (readonly PathKey[])[];
 
 /**
  * Reads declared dependencies into the `deps` record a host resolver receives,
- * keyed by each path's LAST segment — `dependsOn: [["country"]]` arrives as
- * `deps.country`.
+ * keyed by the DOTTED path — `dependsOn: [["country"]]` arrives as
+ * `deps.country`, `[["address", "country"]]` as `deps["address.country"]`.
+ * Distinct paths therefore never collide.
  */
 export function readDependencies(read: ValueReader, paths: DependencyPaths): Record<string, unknown> {
   const deps: Record<string, unknown> = {};
 
   for (const path of paths) {
-    const name = String(path[path.length - 1]);
-    deps[name] = read(path);
+    deps[path.join(".")] = read(path);
   }
 
   return deps;
