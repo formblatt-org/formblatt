@@ -159,6 +159,42 @@ describe("field-level checks", () => {
     expect(lint(def, "error")).toEqual([expect.stringContaining("object fields do not support")]);
   });
 
+  it("rejects initial values that do not fit the kind or its options", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "a", kind: "number", initial: "5" },
+        { name: "b", kind: "date", initial: "junk" },
+        { name: "c", kind: "string", initial: null },
+        { name: "d", kind: "enum", options: [{ label: "A", value: "a" }], initial: "z" },
+        { name: "e", kind: "enum", multiple: true, options: [{ label: "A", value: "a" }], initial: ["a", "z"] },
+      ],
+    };
+    const errors = lint(def, "error");
+    expect(errors).toEqual([
+      expect.stringContaining('initial "5" is not a finite number'),
+      expect.stringContaining("is not an ISO date string"),
+      expect.stringContaining("initial is null but the field is not `nullable`"),
+      expect.stringContaining('initial "z" matches no option'),
+      expect.stringContaining('contains ["z"], which match no option'),
+    ]);
+  });
+
+  it("accepts well-typed initial values, including null on nullable and dynamic-enum strings", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "a", kind: "number", initial: 5 },
+        { name: "b", kind: "date", initial: "2024-06-10" },
+        { name: "c", kind: "string", nullable: true, initial: null },
+        { name: "d", kind: "enum", options: [{ label: "A", value: "a" }], initial: "a" },
+        { name: "e", kind: "enum", required: false, optionsSource: { source: "s" }, initial: "anything" },
+        { name: "f", kind: "boolean", initial: true },
+      ],
+    };
+    expect(lint(def, "error")).toEqual([]);
+  });
+
   it("warns on a static enum without options", () => {
     const def: FormDefinition = { id: "x", fields: [{ name: "e", kind: "enum" }] };
     expect(lint(def, "warning")).toEqual([expect.stringContaining("accepts no value")]);

@@ -279,6 +279,8 @@ function lintFields(
   }
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Checks a built-in rule's operand; returns what it should have been, or nothing when fine. */
 type OperandCheck = (value: unknown) => string | undefined;
 
@@ -286,7 +288,7 @@ const finiteNumber: OperandCheck = value =>
   typeof value === "number" && Number.isFinite(value) ? undefined : "a finite number";
 
 const isoDateString: OperandCheck = value =>
-  typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? undefined : "an ISO date string (yyyy-mm-dd)";
+  typeof value === "string" && ISO_DATE.test(value) ? undefined : "an ISO date string (yyyy-mm-dd)";
 
 const regexPattern: OperandCheck = value => {
   if (typeof value !== "string") return "a pattern string";
@@ -350,6 +352,50 @@ function lintValidations(
   }
 }
 
+/**
+ * `initial` must fit the field's kind and (static) options — a wrong-typed
+ * prefill fails validation with an error the user never caused, or worse,
+ * submits a value outside the contract.
+ */
+function lintInitialValue(field: ValueField, location: string, issues: LintIssue[]): void {
+  const { initial } = field;
+  if (initial === undefined) return;
+
+  if (initial === null) {
+    if (!field.nullable) error(issues, location, "initial is null but the field is not `nullable`");
+    return;
+  }
+
+  const problem = initialProblem(field, initial);
+  if (problem) error(issues, location, `initial ${JSON.stringify(initial)} ${problem}`);
+}
+
+function initialProblem(field: ValueField, initial: unknown): string | undefined {
+  switch (field.kind) {
+    case "string": return typeof initial === "string" ? undefined : "is not a string";
+    case "number": return typeof initial === "number" && Number.isFinite(initial) ? undefined : "is not a finite number";
+    case "boolean": return typeof initial === "boolean" ? undefined : "is not a boolean";
+    case "date": return typeof initial === "string" && ISO_DATE.test(initial) ? undefined : "is not an ISO date string (yyyy-mm-dd)";
+    case "enum": return enumInitialProblem(field, initial);
+  }
+}
+
+/** Static options are the complete value space; dynamic ones only exist at runtime, so just the shape is checkable. */
+function enumInitialProblem(field: ValueField, initial: unknown): string | undefined {
+  const values = field.options?.length ? new Set(field.options.map(option => option.value)) : undefined;
+
+  if (field.multiple) {
+    if (!Array.isArray(initial) || initial.some(choice => typeof choice !== "string")) {
+      return "is not a string array — `multiple` enums hold string[]";
+    }
+    const outside = values && (initial as string[]).filter(choice => !values.has(choice));
+    return outside?.length ? `contains ${JSON.stringify(outside)}, which match no option` : undefined;
+  }
+
+  if (typeof initial !== "string") return "is not a string";
+  return values && !values.has(initial) ? "matches no option" : undefined;
+}
+
 function lintValueField(
   definition: FormDefinition,
   field: ValueField,
@@ -361,6 +407,8 @@ function lintValueField(
   if (field.kind === "enum" && !field.options?.length && !field.optionsSource) {
     warning(issues, location, "static enum with no options accepts no value at all");
   }
+
+  lintInitialValue(field, location, issues);
 
   if (field.multiple && field.kind !== "enum") {
     error(issues, location, "`multiple` is an enum concern — other kinds hold a single value");
