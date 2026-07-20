@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { CustomControlProps } from "@formblatt/vue";
+import type { ControlProps } from "@formblatt/vue";
 
 /**
- * A host-registered control: receives `CustomControlProps` from the field
+ * A host-registered control: receives `ControlProps` from the field
  * scaffold and reports the picked value through `update:input`. The scaffold
  * keeps the error list and aria wiring — the control renders its own label
  * and spreads `aria` onto the interactive element.
  */
-const props = defineProps<CustomControlProps>();
+const props = defineProps<ControlProps>();
 
 const emit = defineEmits<{ "update:input": [value: unknown] }>();
 

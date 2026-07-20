@@ -16,7 +16,7 @@ const surveyDefinition: FormDefinition = {
   revalidate: "input",
   fields: [
     {
-      // `control: "rating"` is not a built-in — it renders the registered component
+      // `control: "rating"` is not in the app-wide kit — the per-form `controls` prop provides it
       name: "overall", kind: "number", control: "rating", label: "How satisfied are you overall?",
       requiredMessage: "Please pick a rating",
     },

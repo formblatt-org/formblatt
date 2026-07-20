@@ -1,0 +1,68 @@
+/*
+ * The demo control kit's shared styling — formblatt is headless and ships
+ * none. Every color/radius reads a --fb-* token with the shipped value as
+ * fallback, so the same theming story applies as for the package's scaffold.
+ */
+
+.control-shell {
+  display: block;
+}
+
+.control-label {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .35rem;
+  font-size: .85rem;
+  font-weight: 550;
+  color: var(--fb-color-label, #374151);
+}
+
+.spinner-sm {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--fb-color-border-soft, #e5e7eb);
+  border-top-color: var(--fb-color-primary, #4f46e5);
+  border-radius: 50%;
+  animation: fb-spin .6s linear infinite;
+}
+
+@keyframes fb-spin {
+  to { transform: rotate(360deg); }
+}
+
+.fb-control {
+  width: 100%;
+  box-sizing: border-box;
+  padding: .5rem .625rem;
+  font: inherit;
+  font-size: .9rem;
+  color: var(--fb-color-text, #1f2937);
+  background: var(--fb-color-surface, #fff);
+  border: 1px solid var(--fb-color-border, #d1d5db);
+  border-radius: var(--fb-radius, 8px);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+textarea.fb-control {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.fb-control:focus {
+  outline: none;
+  border-color: var(--fb-color-primary, #4f46e5);
+  box-shadow: var(--fb-focus-ring, 0 0 0 3px rgba(79, 70, 229, .15));
+}
+
+.fb-control[type="checkbox"] {
+  width: auto;
+  margin-right: .5rem;
+  vertical-align: middle;
+}
+
+.fb-control:disabled {
+  color: var(--fb-color-disabled-text, #9ca3af);
+  background: var(--fb-color-disabled-bg, #f3f4f6);
+  cursor: not-allowed;
+}
