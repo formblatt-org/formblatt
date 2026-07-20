@@ -119,7 +119,17 @@ pnpm build:packages  # build @formblatt/core and @formblatt/vue
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-Describe the form as JSON, hand it to `<DynamicForm>`, and inject resolvers for anything async:
+The Vue package is fully headless — it ships no input components. Register your app's controls once (the field `control` names plus the reserved `text` and `multiple` keys); a definition that resolves to an unregistered control renders the form's error state instead:
+
+```ts
+// main.ts
+import { createFormblatt } from "@formblatt/vue";
+import { TextInput, SelectBox /* … */ } from "./controls"; // your components
+
+app.use(createFormblatt({ controls: { text: TextInput, email: TextInput, select: SelectBox } }));
+```
+
+Then describe the form as JSON, hand it to `<DynamicForm>`, and inject resolvers for anything async:
 
 ```vue
 <script setup lang="ts">
@@ -182,7 +192,7 @@ _For complete examples, run the demo app (`pnpm dev`) and browse:_
 
 - [ ] Publish `@formblatt/core` and `@formblatt/vue` to npm
 - [ ] Documentation site with a full form-definition reference
-- [ ] More built-in field controls
+- [ ] An optional ready-made control kit package over the headless core
 - [ ] Bindings for more frameworks (React, Solid, Svelte) on top of the framework-agnostic core
 
 See the [open issues](https://github.com/formblatt-org/formblatt/issues) for a full list of proposed features (and known issues).
