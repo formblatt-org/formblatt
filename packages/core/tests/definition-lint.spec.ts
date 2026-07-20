@@ -205,13 +205,35 @@ describe("field-level checks", () => {
     expect(lint(def, "error")).toEqual([expect.stringContaining("`multiple` is an enum concern")]);
   });
 
-  it("warns on unregistered control names, accepts registered ones", () => {
+  it("rejects control keys missing from a provided registry, skips the check without one", () => {
     const def: FormDefinition = {
       id: "x",
       fields: [{ name: "score", kind: "number", control: "rating" }],
     };
-    expect(lint(def, "warning")).toEqual([expect.stringContaining('control "rating" is neither built-in nor registered')]);
+    // no registry given — a standalone lint cannot know what the host renders
+    expect(lint(def)).toEqual([]);
     expect(lintDefinition(def, { controls: ["rating"] })).toEqual([]);
+    expect(lintDefinition(def, { controls: [] }).map(issue => issue.message)).toEqual([
+      expect.stringContaining('control "rating" is not registered'),
+    ]);
+  });
+
+  it("checks the EFFECTIVE control key: explicit control wins, multiple → \"multiple\", default → \"text\"", () => {
+    const def: FormDefinition = {
+      id: "x",
+      fields: [
+        { name: "plain", kind: "string" },
+        { name: "tags", kind: "enum", multiple: true, options: [{ label: "A", value: "a" }] },
+        { name: "picker", kind: "enum", multiple: true, control: "tag-picker", options: [{ label: "A", value: "a" }] },
+      ],
+    };
+    expect(lintDefinition(def, { controls: ["text", "multiple", "tag-picker"] })).toEqual([]);
+
+    const missing = lintDefinition(def, { controls: ["text"] }).map(issue => `${issue.location}: ${issue.message}`);
+    expect(missing).toEqual([
+      expect.stringContaining('fields.tags: control "multiple" is not registered'),
+      expect.stringContaining('fields.picker: control "tag-picker" is not registered'),
+    ]);
   });
 
   it("rejects hidden/disabled on container fields (they have no rendering effect)", () => {

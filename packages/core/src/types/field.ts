@@ -96,13 +96,6 @@ export interface Option {
   value: string;
 }
 
-/** The controls `DynamicInput` renders itself; anything else must be a host-registered control. */
-export const BUILT_IN_CONTROLS = [
-  "text", "email", "password", "number", "checkbox", "select", "textarea", "date", "radio",
-] as const;
-
-export type BuiltInControl = (typeof BUILT_IN_CONTROLS)[number];
-
 /**
  * A leaf field holding a single value — the only kind that renders as an
  * input control.
@@ -118,16 +111,18 @@ export type BuiltInControl = (typeof BUILT_IN_CONTROLS)[number];
 export interface ValueField extends BaseField {
   kind: "string" | "number" | "boolean" | "date" | "enum";
   /**
-   * Which input control to render — presentation only. Defaults to a text
-   * input. A name outside {@link BUILT_IN_CONTROLS} renders the host's
-   * registered control of that name (`DynamicForm`'s `controls` prop).
+   * Which input control to render — presentation only. The renderer is
+   * headless: every name addresses a host-registered control, and a field
+   * without one resolves to the reserved key `"text"` (`"multiple"` for a
+   * `multiple` enum) — see `controlKeyFor`. An unregistered key rejects the
+   * definition.
    */
-  control?: BuiltInControl | (string & {});
+  control?: string;
   /** Static choice list for `enum` fields. */
   options?: readonly Option[];
   /**
-   * `enum` only: the value is a `string[]` of distinct choices — rendered as
-   * a checkbox group (a `<select multiple>` would demand ctrl+click).
+   * `enum` only: the value is a `string[]` of distinct choices — without an
+   * explicit {@link control} it renders the host's `"multiple"` control.
    * `required` demands at least one choice; note a visibility-controlled
    * required multi-enum accepts an empty selection (`[]` counts as filled
    * there).

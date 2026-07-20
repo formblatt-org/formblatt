@@ -8,8 +8,7 @@ import type {
   PathKey,
   ValueField,
 } from "../types";
-import { BUILT_IN_CONTROLS } from "../types";
-import { resolveFieldByNamePath } from "./field";
+import { controlKeyFor, resolveFieldByNamePath } from "./field";
 import { KNOWN_VALIDATION_TYPES } from "./form-builder";
 
 /**
@@ -32,8 +31,11 @@ export interface LintOptions {
    */
   customRuleTypes?: readonly string[];
   /**
-   * Control names the host registers with `DynamicForm`'s `controls` prop —
-   * accepted in addition to the built-in controls.
+   * The control registry keys the host provides. The renderer is headless:
+   * when this list is given, every value field's effective control key
+   * (`controlKeyFor`) must be in it — a miss is an ERROR, since the field
+   * could not render. Omit the option entirely to skip the check (a
+   * standalone lint that doesn't know the registry).
    */
   controls?: readonly string[];
 }
@@ -41,7 +43,8 @@ export interface LintOptions {
 /** {@link LintOptions} with defaults applied — what the checks receive. */
 interface LintContext {
   customRuleTypes: readonly string[];
-  controls: readonly string[];
+  /** `undefined` — registry unknown, control checks skipped. */
+  controls: readonly string[] | undefined;
 }
 
 /**
@@ -55,7 +58,7 @@ export function lintDefinition(definition: FormDefinition, options?: LintOptions
   const issues: LintIssue[] = [];
   const context: LintContext = {
     customRuleTypes: options?.customRuleTypes ?? [],
-    controls: options?.controls ?? [],
+    controls: options?.controls,
   };
 
   lintFields(definition, definition.fields, "fields", false, issues, context);
@@ -414,13 +417,11 @@ function lintValueField(
     error(issues, location, "`multiple` is an enum concern — other kinds hold a single value");
   }
 
-  if (
-    field.control &&
-    !(BUILT_IN_CONTROLS as readonly string[]).includes(field.control) &&
-    !context.controls.includes(field.control)
-  ) {
-    warning(issues, location,
-      `control "${field.control}" is neither built-in nor registered — the field falls back to a text input`);
+  // headless renderer: a field whose effective control key has no registered
+  // component cannot render — reject the definition rather than show a hole
+  if (context.controls && !context.controls.includes(controlKeyFor(field))) {
+    error(issues, location,
+      `control "${controlKeyFor(field)}" is not registered — the host must provide a component under this key`);
   }
 
   if (field.optionsSource) {

@@ -107,8 +107,8 @@ export const FieldDefinitionSchema: v.GenericSchema<FieldDefinition> = v.lazy(()
 const ValueFieldSchema = v.object({
   ...baseFieldEntries,
   kind: v.picklist(["string", "number", "boolean", "date", "enum"]),
-  // any string: names outside the built-ins address host-registered controls;
-  // the lint warns when nothing renders a name
+  // any string: every name addresses a host-registered control;
+  // the lint errors when the registry is known and nothing renders a name
   control: v.optional(v.string()),
   options: v.optional(v.array(OptionSchema)),
   multiple: v.optional(v.boolean()),

@@ -33,6 +33,16 @@ export function isValueField(field: FieldDefinition): field is ValueField {
   return field.kind !== "object" && field.kind !== "array";
 }
 
+/**
+ * The registry key a field's control resolves to. The renderer is headless —
+ * every field renders a host-registered control, addressed by this key: an
+ * explicit `control` always wins; a `multiple` enum without one resolves to
+ * the reserved key `"multiple"`; everything else defaults to `"text"`.
+ */
+export function controlKeyFor(field: ValueField): string {
+  return field.control ?? (field.multiple ? "multiple" : "text");
+}
+
 /** One leaf value field with its data path — what {@link walkValueFields} yields. */
 export interface ValueFieldEntry {
   field: ValueField;
