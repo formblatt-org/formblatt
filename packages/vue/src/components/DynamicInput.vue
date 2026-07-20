@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, inject, useId } from "vue";
+import { computed, inject, useId, type Component } from "vue";
+import { controlKeyFor, interpolate, warn } from "@formblatt/core";
 import type { Option, ValueField } from "@formblatt/core";
 import { DEFAULT_UI_TEXT, FormContextKey } from "../form-context";
 import type { FieldBindings } from "../form-store";
-import { BUILT_IN_CONTROL_ENTRIES, GENERIC_CONTROL, MULTIPLE_CONTROL, type ControlEntry } from "../controls/registry";
+import { GlobalControlsKey } from "../plugin";
 
 const props = defineProps<{
   field: ValueField;
@@ -16,32 +17,42 @@ const props = defineProps<{
   loading?: boolean;
   /** The field's host-resolved options or computed value failed to load. */
   loadError?: boolean;
+  /** Overrides the registry — for use outside a DynamicForm. */
+  controls?: Record<string, Component>;
 }>()
 
 const emit = defineEmits<{ "update:input": [value: unknown] }>()
 
 const choices = computed<readonly Option[]>(() => props.options ?? props.field.options ?? []);
 
-// optional by design: DynamicInput also works outside a DynamicForm, with English defaults
+// optional by design: DynamicInput also works outside a DynamicForm, with
+// English defaults and the app-wide registry (or the `controls` prop)
 const ctx = inject(FormContextKey, null);
+const globalControls = inject(GlobalControlsKey, undefined);
 const text = computed(() => ctx?.text.value ?? DEFAULT_UI_TEXT);
 
-/** A host-registered control matching this field's `control` name, if any. */
-const customControl = computed(() =>
-  props.field.control ? ctx?.controls[props.field.control] : undefined);
+/**
+ * The registry this field renders from: inside a DynamicForm the context's
+ * (app-wide merged with the form's), standalone the app-wide one — the
+ * `controls` prop overrides either.
+ */
+const registry = computed<Record<string, Component>>(() =>
+  ({ ...(ctx?.controls ?? globalControls), ...props.controls }));
+
+const controlKey = computed(() => controlKeyFor(props.field));
+const control = computed<Component | undefined>(() => registry.value[controlKey.value]);
 
 /**
- * The built-in control to render: the registry entry for the `control` name,
- * except a `multiple` enum renders as a checkbox group (radio wins over
- * `multiple`, matching the pre-registry behavior) and unmatched names fall
- * through to the generic input.
+ * Unreachable inside a DynamicForm — an unregistered key already rejected the
+ * definition at mount. Standalone (no such gate) the scaffold renders the
+ * miss in place and says which key to register.
  */
-const entry = computed<ControlEntry>(() => {
-  const named = BUILT_IN_CONTROL_ENTRIES[props.field.control ?? "text"];
-  if (props.field.control === "radio" && named) return named;
-  if (props.field.multiple) return MULTIPLE_CONTROL;
-  return named ?? GENERIC_CONTROL;
-});
+const missingText = computed(() =>
+  interpolate(text.value.controlMissing, { control: controlKey.value }));
+
+if (!control.value) {
+  warn("form", `no control registered for "${controlKey.value}" — field "${props.field.name}" renders its error state`);
+}
 
 /** A control is disabled while its choices load, or statically by the definition. */
 const isDisabled = computed(() => props.loading || !!props.field.disabled);
@@ -63,53 +74,32 @@ const aria = computed(() => ({
   "aria-required": isRequired.value || undefined,
 }));
 
-/** The uniform props every built-in control receives. See controls/contract.ts. */
+/** The uniform props every control receives. See {@link ControlProps}. */
 const controlProps = computed(() => ({
   field: props.field,
   input: props.input,
   fieldProps: props.fieldProps,
   aria: aria.value,
-  choices: choices.value,
+  options: choices.value,
   disabled: isDisabled.value,
   loading: !!props.loading,
+  loadError: !!props.loadError,
   text: text.value,
 }));
 </script>
 
 <template>
     <div class="field" :class="{ 'is-loading': loading }" :aria-busy="loading">
-    <!-- a host-registered control renders its own label; the scaffold keeps the error list -->
+    <!-- the control renders its own label; the scaffold keeps the error list and aria wiring -->
     <component
-      :is="customControl"
-      v-if="customControl"
-      :field="field"
-      :input="input"
-      :field-props="fieldProps"
-      :aria="aria"
-      :options="choices"
-      :loading="!!loading"
-      :disabled="isDisabled"
-      :load-error="!!loadError"
-      @update:input="emit('update:input', $event)"
-    />
-
-    <!-- group controls (radio, multi-enum checkboxes) render their own fieldset + legend -->
-    <component
-      :is="entry.component"
-      v-else-if="entry.group"
+      :is="control"
+      v-if="control"
       v-bind="controlProps"
       @update:input="emit('update:input', $event)"
     />
 
-    <label v-else>
-        <span v-if="field.label">
-          {{ field.label }}
-          <!-- controls with their own indicator (select) show it in place instead -->
-          <span v-if="loading && !entry.ownLoadingIndicator" class="spinner-sm" aria-hidden="true" />
-        </span>
-
-        <component :is="entry.component" v-bind="controlProps" @update:input="emit('update:input', $event)" />
-    </label>
+    <!-- a field nothing can render explains itself instead of leaving a silent hole -->
+    <p v-else class="field-control-missing" role="alert">{{ missingText }}</p>
 
     <!-- a resolver failure is a system problem, not a validation error — its own line, amber not red -->
     <p v-if="loadError" class="field-load-error" role="alert">{{ text.loadFailed }}</p>
@@ -124,33 +114,6 @@ const controlProps = computed(() => ({
 <style scoped>
 /* Every color/radius reads a --fb-* token with the shipped value as fallback — see the README. */
 
-.field label {
-  display: block;
-}
-
-.field > label > span {
-  display: flex;
-  align-items: center;
-  gap: .4rem;
-  margin-bottom: .35rem;
-  font-size: .85rem;
-  font-weight: 550;
-  color: var(--fb-color-label, #374151);
-}
-
-.spinner-sm {
-  width: 11px;
-  height: 11px;
-  border: 2px solid var(--fb-color-border-soft, #e5e7eb);
-  border-top-color: var(--fb-color-primary, #4f46e5);
-  border-radius: 50%;
-  animation: spin .6s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .field-errors {
   margin: .4rem 0 0;
   padding: 0;
@@ -164,45 +127,10 @@ const controlProps = computed(() => ({
   color: var(--fb-color-warning, #b45309);
   font-size: .8rem;
 }
-</style>
 
-<!-- UNSCOPED on purpose: the base control styling must reach the registry's
-     control components (child DOM a scoped selector cannot see). Only elements
-     carrying the fb-control class are affected — host custom controls are not. -->
-<style>
-.fb-control {
-  width: 100%;
-  box-sizing: border-box;
-  padding: .5rem .625rem;
-  font: inherit;
-  font-size: .9rem;
-  color: var(--fb-color-text, #1f2937);
-  background: var(--fb-color-surface, #fff);
-  border: 1px solid var(--fb-color-border, #d1d5db);
-  border-radius: var(--fb-radius, 8px);
-  transition: border-color .15s, box-shadow .15s;
-}
-
-textarea.fb-control {
-  min-height: 4.5rem;
-  resize: vertical;
-}
-
-.fb-control:focus {
-  outline: none;
-  border-color: var(--fb-color-primary, #4f46e5);
-  box-shadow: var(--fb-focus-ring, 0 0 0 3px rgba(79, 70, 229, .15));
-}
-
-.fb-control[type="checkbox"] {
-  width: auto;
-  margin-right: .5rem;
-  vertical-align: middle;
-}
-
-.fb-control:disabled {
-  color: var(--fb-color-disabled-text, #9ca3af);
-  background: var(--fb-color-disabled-bg, #f3f4f6);
-  cursor: not-allowed;
+.field-control-missing {
+  margin: 0;
+  color: var(--fb-color-error, #dc2626);
+  font-size: .8rem;
 }
 </style>

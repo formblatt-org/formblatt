@@ -15,3 +15,4 @@ export * from "./composables/usePages";
 export * from "./form-context";
 export * from "./form-store";
 export * from "./typed-form";
+export * from "./plugin";

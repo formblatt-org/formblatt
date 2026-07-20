@@ -10,6 +10,18 @@ pnpm add @formblatt/vue @formblatt/core @formisch/vue valibot
 
 ## Quick start
 
+The package is **headless**: it ships the form engine, scaffold and wiring, but **no input components** — your app registers its own controls once, and every `DynamicForm` renders from that registry.
+
+```ts
+// main.ts — register your control kit app-wide
+import { createFormblatt } from "@formblatt/vue";
+import { TextInput, CheckboxInput, SelectBox } from "./controls"; // your components
+
+app.use(createFormblatt({
+  controls: { text: TextInput, email: TextInput, checkbox: CheckboxInput, select: SelectBox },
+}));
+```
+
 ```vue
 <script setup lang="ts">
 import { DynamicForm } from "@formblatt/vue";
@@ -31,9 +43,45 @@ const definition = {
 
 `DynamicForm` validates the definition, builds the store and renders every field through the automatic layout — or open its default slot and place `DynamicLayout`, `DynamicSection`, `DynamicField` and `DynamicFieldArray` yourself. In dev mode the form warns when a field is validated but never placed in the DOM.
 
+## Controls
+
+Every field renders a host-registered component, resolved by key:
+
+1. the field's explicit `control` name, if set;
+2. otherwise `"multiple"` for a `multiple` enum;
+3. otherwise `"text"`.
+
+`"text"` and `"multiple"` are the only reserved keys — everything else is a name your definitions and your registry agree on (`email`, `select`, `rating`, …). Register app-wide with `createFormblatt({ controls })`, per form with `DynamicForm`'s `controls` prop (merged over the app registry, prop wins). **A definition whose fields resolve to an unregistered key is rejected at mount** — the form renders its error box and fires `@error` instead of leaving a silent hole.
+
+A control receives `ControlProps` and reports values through `update:input`:
+
+```vue
+<script setup lang="ts">
+import type { ControlProps } from "@formblatt/vue";
+
+// field, input, fieldProps, aria, options, disabled, loading, loadError, text
+const props = defineProps<ControlProps>();
+const emit = defineEmits<{ "update:input": [value: unknown] }>();
+</script>
+
+<template>
+  <label>
+    <span v-if="field.label">{{ field.label }}</span>
+    <input
+      v-bind="{ ...fieldProps, ...aria }"
+      :disabled="disabled"
+      :value="input"
+      @input="emit('update:input', ($event.target as HTMLInputElement).value)"
+    />
+  </label>
+</template>
+```
+
+The division of labour: the scaffold (`DynamicInput`) keeps the error list, the aria computation (`aria-invalid` / `aria-describedby` / `aria-required`) and the load-failed line; the control renders its own label, spreads `{ ...fieldProps, ...aria }` onto its focusable element, and emits **normalized** values (`undefined` for an emptied number input or a deselected placeholder, a `string[]` in option order for a multi-enum). `options` carries the host-resolved or static choices, `text` the form's UI strings (`selectPlaceholder`, `loading`, …) so controls follow the form's i18n. The demo app's kit (`apps/demo/app/components/controls/`) is a complete reference implementation.
+
 ## The moving parts
 
-- **`DynamicForm`** — owns the store and provides context. Props: `definition`, `initialData` (hydrate an edit workflow's saved record over the declared initials), host resolvers `resolvePopulate` / `resolveOptions` / `resolveComputed` / `resolveValidation` (each optional — a warning tells you when a definition needs one), `rules` (host-defined validation rules), `controls` (host-registered input components), `messages` (validation message catalog with `{field}` / `{value}` interpolation), `text` (every built-in UI string — the i18n hook), and `errorDisplay: "always" | "touched"`.
+- **`DynamicForm`** — owns the store and provides context. Props: `definition`, `initialData` (hydrate an edit workflow's saved record over the declared initials), host resolvers `resolvePopulate` / `resolveOptions` / `resolveComputed` / `resolveValidation` (each optional — a warning tells you when a definition needs one), `rules` (host-defined validation rules), `controls` (per-form control registrations — see [Controls](#controls)), `messages` (validation message catalog with `{field}` / `{value}` interpolation), `text` (every built-in UI string — the i18n hook), and `errorDisplay: "always" | "touched"`.
 - **Submit** — `@submit` receives the parsed values and a context; async handlers keep the form `isSubmitting` until they settle, and `context.setFieldErrors({ "email": "Taken" })` maps server-side errors back onto fields. `createTypedForm` types the payload from a literal definition.
 - **`DynamicField`** — one control, by top-level `name` or any `path` (e.g. `["address", "city"]`).
 - **`DynamicFieldArray`** — rows with add/remove/move/swap, headless via its slot.
@@ -45,7 +93,7 @@ Interaction rules come from the definition: visibility affects (`show` / `hide` 
 
 ## Theming
 
-Every color and radius in the built-in components reads a `--fb-*` custom property, with the shipped value as fallback — set the tokens on any ancestor (`:root`, a page, one form) and the whole form follows. No `:deep()` overrides needed.
+Every color and radius in the shipped chrome (buttons, sections, error box, spinners, error lines) reads a `--fb-*` custom property, with the shipped value as fallback — set the tokens on any ancestor (`:root`, a page, one form) and the whole form follows. No `:deep()` overrides needed. Your registered controls style themselves; reading the same tokens keeps one theming story (the demo kit does).
 
 ```css
 :root {
@@ -60,23 +108,20 @@ Every color and radius in the built-in components reads a `--fb-*` custom proper
 | `--fb-color-primary` | `#4f46e5` | buttons, focus border, spinners, active accents |
 | `--fb-color-primary-hover` | `#4338ca` | primary button hover |
 | `--fb-color-primary-contrast` | `#fff` | text on primary |
-| `--fb-color-text` | `#1f2937` | control text, page titles |
+| `--fb-color-text` | `#1f2937` | body text, page titles |
 | `--fb-color-label` | `#374151` | field labels, secondary buttons |
 | `--fb-color-muted` | `#6b7280` | step indicator |
-| `--fb-color-border` | `#d1d5db` | control and button borders |
+| `--fb-color-border` | `#d1d5db` | button borders, spinners |
 | `--fb-color-border-soft` | `#e5e7eb` | section and array-row borders |
-| `--fb-color-surface` | `#fff` | control and button backgrounds |
+| `--fb-color-surface` | `#fff` | button backgrounds |
 | `--fb-color-surface-soft` | `#fafafa` | section background |
 | `--fb-color-surface-hover` | `#f9fafb` | secondary button hover |
-| `--fb-color-disabled-text` | `#9ca3af` | disabled control text |
-| `--fb-color-disabled-bg` | `#f3f4f6` | disabled control background |
-| `--fb-color-error` | `#dc2626` | validation error text |
+| `--fb-color-error` | `#dc2626` | validation error text, missing-control line |
 | `--fb-color-warning` | `#b45309` | the load-failed line |
 | `--fb-color-error-bg` | `#fef2f2` | rejected-definition box background |
 | `--fb-color-error-border` | `#fecaca` | rejected-definition box border |
 | `--fb-color-error-text` | `#991b1b` | rejected-definition box text |
-| `--fb-focus-ring` | `0 0 0 3px rgba(79, 70, 229, .15)` | focused control shadow |
-| `--fb-radius` | `8px` | controls and buttons |
+| `--fb-radius` | `8px` | buttons |
 | `--fb-radius-lg` | `10px` | sections, array rows, error box |
 
 The scoped class names (`.field`, `.field-errors`, …) are implementation detail, not API — target the tokens, not the classes.

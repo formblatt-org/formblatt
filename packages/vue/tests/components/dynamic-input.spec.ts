@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { ValueField } from "@formblatt/core";
 import type { FieldElementProps } from "@formisch/vue";
@@ -53,16 +53,14 @@ describe("DynamicInput value normalization", () => {
     expect(lastInput(wrapper)).toBeUndefined();
   });
 
-  it("renders a multiple enum as a checkbox group and toggles values in option order", async () => {
+  it("renders a multiple enum through the reserved 'multiple' key and toggles values in option order", async () => {
     const options = [
       { label: "A", value: "a" },
       { label: "B", value: "b" },
       { label: "C", value: "c" },
     ];
-    const wrapper = mountInput({ kind: "enum", multiple: true, control: "select", options });
+    const wrapper = mountInput({ kind: "enum", multiple: true, options });
 
-    // no ctrl+click UI: a multi-enum must not render a <select multiple>
-    expect(wrapper.find("select").exists()).toBe(false);
     const boxes = wrapper.findAll("input[type='checkbox']");
     expect(boxes).toHaveLength(3);
 
@@ -77,6 +75,17 @@ describe("DynamicInput value normalization", () => {
     await wrapper.setProps({ input: ["a", "c"] });
     await boxes[2]!.setValue(false);
     expect(lastInput(wrapper)).toEqual(["a"]);
+  });
+
+  it("lets an explicit control win over `multiple`", () => {
+    const wrapper = mountInput({
+      kind: "enum", multiple: true, control: "select",
+      options: [{ label: "A", value: "a" }],
+    });
+
+    // the host's select owns the array value — `multiple` only picks the default
+    expect(wrapper.find("select").exists()).toBe(true);
+    expect(wrapper.find("input[type='checkbox']").exists()).toBe(false);
   });
 
   it("renders control: textarea as a real <textarea>, not <input type='textarea'>", async () => {
@@ -148,5 +157,30 @@ describe("DynamicInput accessibility contract", () => {
       options: [{ label: "Red", value: "red" }],
     });
     expect(wrapper.find("option").text()).toBe("— Select —");
+  });
+
+  it("lets the `controls` prop override the app-wide registry for standalone use", async () => {
+    const Custom = {
+      props: ["field", "fieldProps", "aria"],
+      emits: ["update:input"],
+      template: `<button type="button" class="own" @click="$emit('update:input', 'picked')">pick</button>`,
+    };
+    const wrapper = mountInput({ kind: "string" }, { controls: { text: Custom } });
+
+    expect(wrapper.find("input").exists()).toBe(false);
+    await wrapper.find("button.own").trigger("click");
+    expect(lastInput(wrapper)).toBe("picked");
+  });
+
+  it("renders the missing-control state for an unregistered key, naming the key", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const wrapper = mountInput({ kind: "string", control: "widget" });
+
+    const missing = wrapper.find(".field-control-missing");
+    expect(missing.attributes("role")).toBe("alert");
+    expect(missing.text()).toContain('No control registered for "widget"');
+    expect(wrapper.find("input").exists()).toBe(false);
+    expect(warn.mock.calls.map(call => String(call[0])).some(text => text.includes('"widget"'))).toBe(true);
+    warn.mockRestore();
   });
 });

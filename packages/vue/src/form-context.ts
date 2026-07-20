@@ -2,7 +2,7 @@ import { inject, type Component, type ComputedRef, type InjectionKey } from "vue
 import { fail } from "@formblatt/core";
 import type { FormDefinition, Option, PathKey, ResolvedNode, ValueField } from "@formblatt/core";
 import type { PagesApi } from "./composables/usePages";
-import type { DynamicFormStore } from "./form-store";
+import type { DynamicFormStore, FieldBindings } from "./form-store";
 
 /** A resolved layout section — the node kind `DynamicSection` renders. */
 export type ResolvedSection = Extract<ResolvedNode, { type: "section" }>;
@@ -44,10 +44,11 @@ export interface FormContext {
   text: ComputedRef<UiText>;
 
   /**
-   * Host-registered controls by name (`DynamicForm`'s `controls` prop). A
-   * field whose `control` matches renders that component inside the field
-   * scaffold — it receives {@link CustomControlProps} and emits
-   * `update:input` with the new value.
+   * The host's controls by registry key — the app-wide registry
+   * (`createFormblatt`) merged with `DynamicForm`'s `controls` prop. The
+   * package is headless: EVERY field renders one of these. A component
+   * receives {@link ControlProps} and emits `update:input` with the new
+   * value; a field whose key resolves to none rejects the definition.
    */
   controls: Record<string, Component>;
 
@@ -65,24 +66,27 @@ export interface FormContext {
 export type ErrorDisplay = "always" | "touched";
 
 /**
- * What a host-registered control receives. The scaffold around it (label
- * omitted — render your own; error list, aria wiring) stays with
- * `DynamicInput`: spread `aria` onto your focusable element and emit
- * `update:input` with the new value.
+ * The uniform contract of a host-registered control — what every registry
+ * component receives. The scaffold around it (error list, aria computation,
+ * loading state) stays with `DynamicInput`; the control renders its own
+ * label, spreads `{ ...fieldProps, ...aria }` onto its focusable element and
+ * emits `update:input` with the normalized value.
  */
-export interface CustomControlProps {
+export interface ControlProps {
   field: ValueField;
   input: unknown;
-  /** formisch's element bindings (name, ref, event handlers) — spread onto the control. */
-  fieldProps: Record<string, unknown>;
-  /** aria-invalid / aria-describedby / aria-required, pre-computed. */
+  /** The field's element bindings (name, ref, event handlers) — spread onto the control. */
+  fieldProps: FieldBindings;
+  /** aria-invalid / aria-describedby / aria-required, pre-computed by the scaffold. */
   aria: Record<string, string | undefined>;
-  /** Host-resolved or static choices, when the field has any. */
+  /** Host-resolved or static choices — empty for non-enum controls. */
   options: readonly Option[];
   loading: boolean;
   disabled: boolean;
   /** Whether the field's host-resolved options or computed value failed to load. */
   loadError: boolean;
+  /** The form's UI strings (select placeholder, loading …) — the i18n hook. */
+  text: UiText;
 }
 
 /** What a {@link SubmitHandler} receives besides the values. */
@@ -122,6 +126,8 @@ export interface UiText {
   populating: string;
   /** Shown under a field whose host-resolved options or computed value failed to load. */
   loadFailed: string;
+  /** Shown in place of a field whose control key has no registered component. Interpolates `{control}`. */
+  controlMissing: string;
   /** Title of the error box a rejected definition renders instead of the form. */
   formError: string;
   /** Wizard navigation. `stepLabel` interpolates `{current}` and `{total}`. */
@@ -142,6 +148,7 @@ export const DEFAULT_UI_TEXT: UiText = {
   removeRow: "Remove",
   populating: "Loading…",
   loadFailed: "Couldn't load — please try again",
+  controlMissing: 'No control registered for "{control}"',
   formError: "This form could not be loaded.",
   next: "Next",
   back: "Back",

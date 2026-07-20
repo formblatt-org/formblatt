@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, provide, useTemplateRef, watch, type Component, type ComponentPublicInstance } from "vue";
+import { computed, inject, provide, useTemplateRef, watch, type Component, type ComponentPublicInstance } from "vue";
 import { Form, reset, useForm } from "@formisch/vue";
 import {
   buildFormSchema,
@@ -35,6 +35,7 @@ import {
   type UiText,
 } from "../form-context";
 import { createReader, isFormDirty, writeFieldErrors } from "../form-store";
+import { GlobalControlsKey } from "../plugin";
 import { useCoverageWarnings } from "../internal/coverage";
 import { isDevelopment } from "../internal/env";
 import { focusFirstInvalid } from "../internal/focus";
@@ -70,7 +71,12 @@ const props = defineProps<{
   remoteFailure?: "pass" | "fail";
   /** Host-defined validation rules, addressable from any field's `validations` by key. */
   rules?: Record<string, ValidationFactory>;
-  /** Host-registered controls by name — a field's `control` outside the built-ins renders these. */
+  /**
+   * Per-form controls by registry key, merged over the app-wide registry
+   * (`createFormblatt`). The package is headless — every field renders a
+   * registered control; a definition resolving to an unregistered key is
+   * rejected at mount.
+   */
   controls?: Record<string, Component>;
   /** `"touched"` hides a field's errors until it is focused or a submit is attempted. Default: `"always"`. */
   errorDisplay?: ErrorDisplay;
@@ -100,6 +106,9 @@ const emit = defineEmits<{
 
 const text = computed<UiText>(() => ({ ...DEFAULT_UI_TEXT, ...props.text }));
 
+/** The registry every field renders from: the app-wide controls under the per-form ones. */
+const controls: Record<string, Component> = { ...inject(GlobalControlsKey, undefined), ...props.controls };
+
 /** What a rejected definition falls back to, so the store and context still exist. */
 const EMPTY_DEFINITION: FormDefinition = { id: "__invalid", fields: [] };
 
@@ -120,9 +129,11 @@ const buildSchema = (definition: FormDefinition) =>
 // the store is built over an empty stand-in and the template short-circuits.
 const compiled = (() => {
   try {
+    // controls is ALWAYS passed: a field resolving to an unregistered key is
+    // an error — the form renders its error state instead of a silent hole
     const validated = validateDefinition(migrateDefinition(props.definition), {
       customRuleTypes: props.rules && Object.keys(props.rules),
-      controls: props.controls && Object.keys(props.controls),
+      controls: Object.keys(controls),
     });
     return { definition: validated, schema: buildSchema(validated), error: null };
   } catch (cause) {
@@ -253,7 +264,7 @@ provide(FormContextKey, {
   definition,
   errorDisplay: props.errorDisplay ?? "always",
   text,
-  controls: props.controls ?? {},
+  controls,
   pages,
   resolvedLayout,
   resolveField,

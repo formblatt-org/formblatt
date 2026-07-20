@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject } from "vue";
+import { computed, inject, type Component } from "vue";
 import { Field } from "@formisch/vue";
 import type { Option, PathKey, ValueField } from "@formblatt/core";
 import { FormContextKey } from "../form-context";
@@ -14,6 +14,8 @@ const props = defineProps<{
   options?: Option[];
   /** Overrides the context's loading state — for use outside a DynamicForm. */
   loading?: boolean;
+  /** Overrides the control registry — for use outside a DynamicForm. */
+  controls?: Record<string, Component>;
 }>()
 
 // formisch types Field's `path` from the schema; ours is built at runtime (see form-store)
@@ -51,6 +53,7 @@ const visibleErrors = (errors: string[] | null, isTouched: boolean) =>
       :options="options"
       :loading="loading"
       :load-error="loadError"
+      :controls="controls"
     />
   </Field>
 </template>

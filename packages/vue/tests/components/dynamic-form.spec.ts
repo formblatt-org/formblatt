@@ -303,6 +303,20 @@ describe("DynamicForm error display and visibility", () => {
 });
 
 describe("DynamicForm custom controls", () => {
+  it("lets the per-form `controls` prop shadow the app-wide registry", () => {
+    const OwnText = defineComponent({
+      props: ["field", "fieldProps", "aria"],
+      emits: ["update:input"],
+      template: `<input class="own-text" v-bind="{ ...fieldProps, ...aria }" />`,
+    });
+    const wrapper = mount(DynamicForm, {
+      props: { definition: simple, controls: { text: OwnText } },
+    });
+
+    // firstName and city resolve to "text" — the form's own control wins over the kit's
+    expect(wrapper.findAll(".own-text")).toHaveLength(2);
+  });
+
   it("renders a registered control inside the scaffold and writes its value", async () => {
     const Rating = defineComponent({
       props: ["field", "input", "aria"],
@@ -482,6 +496,22 @@ describe("DynamicForm invalid definitions", () => {
     });
 
     expect(wrapper.find(".custom-error").text()).toContain("ghost");
+    error.mockRestore();
+  });
+
+  it("rejects a definition whose control has no registered component", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const definition: FormDefinition = {
+      id: "form-unregistered-control",
+      fields: [{ name: "score", kind: "number", control: "rating", required: false }],
+    };
+
+    // the kit has no "rating" — the whole form errors instead of leaving a field hole
+    const wrapper = mount(DynamicForm, { props: { definition } });
+
+    expect(wrapper.find(".definition-error").exists()).toBe(true);
+    expect(wrapper.find("form").exists()).toBe(false);
+    expect((wrapper.emitted("error")![0]![0] as Error).message).toContain('control "rating" is not registered');
     error.mockRestore();
   });
 

@@ -6,11 +6,13 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     include: ["tests/**/*.spec.ts"],
+    setupFiles: ["tests/setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**"],
       // a floor just under the measured level — a drop means untested new code
-      thresholds: { statements: 89, branches: 77, functions: 91, lines: 90 },
+      // (re-baselined when the built-in controls moved out to the demo app)
+      thresholds: { statements: 89, branches: 76, functions: 91, lines: 90 },
     },
   },
 });
