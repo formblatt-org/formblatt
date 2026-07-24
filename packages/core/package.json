@@ -57,7 +57,7 @@
     "valibot": "^1.4.2"
   },
   "devDependencies": {
-    "@size-limit/file": "^12.1.0",
+    "@size-limit/file": "^13.0.1",
     "@types/node": "^26.1.1",
     "@vitest/coverage-v8": "^4.1.10",
     "size-limit": "^12.1.0",
