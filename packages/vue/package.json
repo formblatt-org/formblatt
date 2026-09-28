@@ -63,22 +63,22 @@
     "@formblatt/core": "workspace:*"
   },
   "peerDependencies": {
-    "@formisch/vue": "1.0.0-rc.0",
-    "valibot": "^1.4.2",
+    "@formisch/vue": "1.1.0",
+    "valibot": "^1.5.0",
     "vue": "^3.5.0"
   },
   "devDependencies": {
-    "@formisch/vue": "1.0.0-rc.0",
+    "@formisch/vue": "1.1.0",
     "@size-limit/file": "^13.0.1",
-    "@vitejs/plugin-vue": "^6.0.7",
+    "@vitejs/plugin-vue": "^6.0.9",
     "@vitest/coverage-v8": "^4.1.10",
-    "@vue/test-utils": "^2.4.11",
-    "happy-dom": "^20.10.6",
+    "@vue/test-utils": "^2.5.1",
+    "happy-dom": "^20.14.5",
     "size-limit": "^13.0.1",
-    "valibot": "^1.4.2",
-    "vite": "^8.1.5",
+    "valibot": "^1.5.0",
+    "vite": "^8.3.1",
     "vitest": "^4.1.10",
-    "vue": "^3.5.40",
-    "vue-tsc": "^3.3.7"
+    "vue": "^3.5.43",
+    "vue-tsc": "^3.3.11"
   }
 }
